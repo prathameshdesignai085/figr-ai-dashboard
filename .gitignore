@@ -1,0 +1,16 @@
+.DS_Store
+.claude/
+
+# Next.js app
+app/node_modules/
+app/.next/
+app/out/
+app/.vercel/
+app/.pnp
+app/.pnp.*
+app/coverage/
+app/*.tsbuildinfo
+app/npm-debug.log*
+app/yarn-debug.log*
+app/yarn-error.log*
+app/.pnpm-debug.log*

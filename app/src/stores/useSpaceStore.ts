@@ -1,0 +1,121 @@
+import { create } from "zustand";
+import { nanoid } from "nanoid";
+import type { Space } from "@/types";
+
+interface SpaceState {
+  spaces: Space[];
+  activeSpaceId: string | null;
+  getActiveSpace: () => Space | undefined;
+  setActiveSpace: (id: string | null) => void;
+  addSpace: (space: Space) => void;
+  createSpace: (name: string, description: string) => Space;
+  toggleFavorite: (id: string) => void;
+  updateSpace: (id: string, updates: Partial<Space>) => void;
+}
+
+export const useSpaceStore = create<SpaceState>((set, get) => ({
+  spaces: [
+    {
+      id: "space-1",
+      name: "Checkout Redesign",
+      description: "Redesigning the checkout flow for better conversion",
+      stage: "wireframe",
+      isFavorite: true,
+      createdAt: "2026-03-28T10:00:00Z",
+      updatedAt: "2026-04-02T14:30:00Z",
+      chatIds: ["chat-1", "chat-2"],
+      contextItems: [
+        {
+          id: "ctx-1",
+          name: "Checkout PRD",
+          type: "document",
+          source: "google-docs",
+          addedAt: "2026-03-28T10:00:00Z",
+        },
+        {
+          id: "ctx-2",
+          name: "Cart analytics.csv",
+          type: "spreadsheet",
+          source: "upload",
+          addedAt: "2026-03-29T09:00:00Z",
+        },
+      ],
+      connectedKnowledge: [
+        "about-company",
+        "design-system",
+        "customers-personas",
+      ],
+      instructions: "Focus on reducing cart abandonment. Target: 15% improvement in checkout completion rate.",
+    },
+    {
+      id: "space-2",
+      name: "Onboarding V2",
+      description: "New user onboarding experience",
+      stage: "brainstorm",
+      isFavorite: true,
+      createdAt: "2026-04-01T08:00:00Z",
+      updatedAt: "2026-04-03T11:00:00Z",
+      chatIds: ["chat-3"],
+      contextItems: [],
+      connectedKnowledge: ["about-company", "customers-personas"],
+      instructions: "",
+    },
+    {
+      id: "space-3",
+      name: "Mobile App MVP",
+      description: "First version of the mobile application",
+      stage: "brainstorm",
+      isFavorite: false,
+      createdAt: "2026-04-02T10:00:00Z",
+      updatedAt: "2026-04-02T16:00:00Z",
+      chatIds: [],
+      contextItems: [],
+      connectedKnowledge: [],
+      instructions: "",
+    },
+  ],
+  activeSpaceId: null,
+
+  getActiveSpace: () => {
+    const state = get();
+    return state.spaces.find((s) => s.id === state.activeSpaceId);
+  },
+
+  setActiveSpace: (id) => set({ activeSpaceId: id }),
+
+  addSpace: (space) =>
+    set((state) => ({ spaces: [...state.spaces, space] })),
+
+  createSpace: (name, description) => {
+    const now = new Date().toISOString();
+    const space: Space = {
+      id: `space-${nanoid(6)}`,
+      name,
+      description,
+      stage: "brainstorm",
+      isFavorite: false,
+      createdAt: now,
+      updatedAt: now,
+      chatIds: [],
+      contextItems: [],
+      connectedKnowledge: [],
+      instructions: "",
+    };
+    set((state) => ({ spaces: [...state.spaces, space] }));
+    return space;
+  },
+
+  toggleFavorite: (id) =>
+    set((state) => ({
+      spaces: state.spaces.map((s) =>
+        s.id === id ? { ...s, isFavorite: !s.isFavorite } : s
+      ),
+    })),
+
+  updateSpace: (id, updates) =>
+    set((state) => ({
+      spaces: state.spaces.map((s) =>
+        s.id === id ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s
+      ),
+    })),
+}));
