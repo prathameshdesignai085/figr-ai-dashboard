@@ -8,8 +8,15 @@ export const FIGRED_MSG = {
   HTML_EXPORT: "FIGRED_HTML_EXPORT",
 } as const;
 
-export function appendInspectBridge(html: string): string {
+export function appendInspectBridge(
+  html: string,
+  opts?: { canvasOutputId?: string }
+): string {
   if (html.includes("figred-inspect-bridge")) return html;
+  const canvasIdTag =
+    opts?.canvasOutputId != null && opts.canvasOutputId !== ""
+      ? `<script data-figred-canvas-id>window.__FIGRED_CANVAS_OUTPUT_ID__=${JSON.stringify(opts.canvasOutputId)}</script>`
+      : "";
   const script = `<script data-figred-inspect-bridge>
 (function(){
   var inspectOn=false, hoverEl=null, selectedEl=null, inspectId=0;
@@ -44,13 +51,17 @@ export function appendInspectBridge(html: string): string {
       inspectId++;
       selectedEl.setAttribute("data-figred-inspect-id", "figred-" + inspectId);
     }
-    window.parent.postMessage({
+    var msg = {
       type: "${FIGRED_MSG.SELECT}",
       componentName: pickName(selectedEl),
       tagName: selectedEl.tagName.toLowerCase(),
       inspectId: selectedEl.getAttribute("data-figred-inspect-id"),
       styles: readStyles(selectedEl)
-    }, "*");
+    };
+    if (typeof window.__FIGRED_CANVAS_OUTPUT_ID__ === "string" && window.__FIGRED_CANVAS_OUTPUT_ID__) {
+      msg.outputId = window.__FIGRED_CANVAS_OUTPUT_ID__;
+    }
+    window.parent.postMessage(msg, "*");
   }
   window.addEventListener("message", function(e) {
     var d = e.data;
@@ -113,5 +124,19 @@ export function appendInspectBridge(html: string): string {
   }, true);
 })();
 </script>`;
-  return html.replace("</body>", `${script}</body>`);
+  return html.replace("</body>", `${canvasIdTag}${script}</body>`);
+}
+
+/** Wrap fragment or full HTML and attach inspect bridge for canvas output / built preview cards. */
+export function buildCanvasInspectSrcDoc(
+  htmlOrFragment: string,
+  canvasOutputId: string
+): string {
+  const trimmed = htmlOrFragment.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith("<!doctype") || lower.startsWith("<html")) {
+    return appendInspectBridge(trimmed, { canvasOutputId });
+  }
+  const wrapped = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}</style></head><body>${trimmed}</body></html>`;
+  return appendInspectBridge(wrapped, { canvasOutputId });
 }

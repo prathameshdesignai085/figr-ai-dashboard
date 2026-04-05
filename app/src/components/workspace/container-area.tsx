@@ -9,6 +9,7 @@ import { CodeView } from "./code-view";
 import { CanvasPanel } from "./canvas-panel";
 import { BuildPreviewPanel } from "./build-preview/build-preview-panel";
 import { OutputHtmlPreview } from "./output-html-preview";
+import { DesignEditorPanel } from "./design-editor/design-editor-panel";
 import { motion, AnimatePresence } from "framer-motion";
 
 function isLikelyHtml(content: string): boolean {
@@ -39,6 +40,9 @@ export function ContainerArea({ space }: { space: Space }) {
     }
     if (activeTab.type === "code") {
       return <CodeView tab={activeTab} />;
+    }
+    if (activeTab.type === "design-editor") {
+      return <DesignEditorPanel tab={activeTab} />;
     }
     if (activeTab.type === "output" && isLikelyHtml(activeTab.content)) {
       return <OutputHtmlPreview html={activeTab.content} />;

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type CanvasTool = "select" | "draw" | "pan";
+export type CanvasTool = "select" | "draw" | "pan" | "inspect" | "marquee";
 
 interface CanvasState {
   activeTool: CanvasTool;

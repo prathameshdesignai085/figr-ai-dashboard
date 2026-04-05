@@ -4,6 +4,8 @@ import {
   T,
   TLBaseShape,
 } from "tldraw";
+import { buildCanvasInspectSrcDoc } from "@/components/workspace/build-preview/inspect-bridge";
+import { InspectableCanvasIframe } from "./inspectable-canvas-iframe";
 
 // Augment tldraw's shape props map so our custom type is recognized
 declare module "@tldraw/tlschema" {
@@ -61,6 +63,10 @@ export class HtmlPreviewShapeUtil extends BaseBoxShapeUtil<HtmlPreviewShape> {
   component(shape: HtmlPreviewShape) {
     const { title, htmlContent } = shape.props;
     const hasHtml = htmlContent.includes("<");
+    const outputId = shape.id.replace(/^shape:/, "");
+    const builtSrcDoc = hasHtml
+      ? buildCanvasInspectSrcDoc(htmlContent, outputId)
+      : "";
 
     return (
       <HTMLContainer
@@ -202,16 +208,15 @@ export class HtmlPreviewShapeUtil extends BaseBoxShapeUtil<HtmlPreviewShape> {
             }}
           >
             {hasHtml ? (
-              <iframe
-                srcDoc={htmlContent}
-                sandbox="allow-scripts"
+              <InspectableCanvasIframe
+                srcDoc={builtSrcDoc}
+                title={title}
                 style={{
                   width: "100%",
                   height: "100%",
                   border: "none",
                   background: "white",
                 }}
-                title={title}
               />
             ) : (
               <div

@@ -1,6 +1,6 @@
 "use client";
 
-import { MousePointer2, Pencil, Hand } from "lucide-react";
+import { MousePointer2, Pencil, Hand, MousePointerClick, ScanLine } from "lucide-react";
 import { useCanvasStore, type CanvasTool } from "@/stores/useCanvasStore";
 import { cn } from "@/lib/utils";
 import type { Editor } from "tldraw";
@@ -12,7 +12,9 @@ const tools: {
   shortcut: string;
 }[] = [
   { id: "select", icon: MousePointer2, label: "Select", shortcut: "V" },
+  { id: "inspect", icon: MousePointerClick, label: "Inspect element", shortcut: "I" },
   { id: "draw", icon: Pencil, label: "Draw / Annotate", shortcut: "D" },
+  { id: "marquee", icon: ScanLine, label: "Screenshot", shortcut: "S" },
   { id: "pan", icon: Hand, label: "Pan", shortcut: "H" },
 ];
 
@@ -27,8 +29,14 @@ export function CanvasToolbar({ editor }: { editor: Editor | null }) {
       case "select":
         editor.setCurrentTool("select");
         break;
+      case "inspect":
+        editor.setCurrentTool("select");
+        break;
       case "draw":
         editor.setCurrentTool("draw");
+        break;
+      case "marquee":
+        editor.setCurrentTool("select");
         break;
       case "pan":
         editor.setCurrentTool("hand");
@@ -37,7 +45,7 @@ export function CanvasToolbar({ editor }: { editor: Editor | null }) {
   };
 
   return (
-    <div className="absolute left-3 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-0.5 rounded-lg border border-white/[0.08] bg-[#161616] p-1">
+    <div className="absolute bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-row gap-0.5 rounded-lg border border-white/[0.08] bg-[#161616] p-1">
       {tools.map((tool) => {
         const Icon = tool.icon;
         const isActive = activeTool === tool.id;

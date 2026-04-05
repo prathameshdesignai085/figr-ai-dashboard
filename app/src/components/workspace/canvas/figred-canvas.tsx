@@ -11,7 +11,10 @@ import {
 import "tldraw/tldraw.css";
 import type { Output } from "@/types";
 import { useChatStore } from "@/stores/useChatStore";
+import { useCanvasStore, type CanvasTool } from "@/stores/useCanvasStore";
+import { cn } from "@/lib/utils";
 import { useShelfStore } from "@/stores/useShelfStore";
+import { FIGRED_MSG } from "@/components/workspace/build-preview/inspect-bridge";
 import { useCanvasDeselectStore } from "@/stores/useCanvasDeselectStore";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { CanvasToolbar } from "./canvas-toolbar";
@@ -20,6 +23,7 @@ import {
   type SelectionMoreMenuAction,
 } from "./selection-action-bar";
 import { AnnotationPrompt } from "./annotation-prompt";
+import { MarqueeOverlay } from "./marquee-overlay";
 import { OutputCardShapeUtil } from "./output-shape";
 import { HtmlPreviewShapeUtil } from "./html-preview-shape";
 import { nanoid } from "nanoid";
@@ -278,6 +282,17 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
     });
   }, []);
 
+  /** Handle "Edit" — open a design-editor tab for an output */
+  const handleEdit = useCallback((output: Output) => {
+    useWorkspaceStore.getState().openTab({
+      id: `design-${output.id}`,
+      type: "design-editor",
+      title: `Edit: ${output.title}`,
+      content: output.content,
+      outputId: output.id,
+    });
+  }, []);
+
   /** Kebab menu on selection bar — design system, Figma, remix (chat + mock assistant) */
   const handleSelectionMoreMenu = useCallback(
     (action: SelectionMoreMenuAction, outputs: Output[]) => {
@@ -343,11 +358,20 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
       const activeChatId = useChatStore.getState().activeChatId;
       if (!activeChatId) return;
 
-      const selectedIds = useShelfStore.getState().selectedOutputIds;
+      const {
+        selectedOutputIds: selectedIds,
+        selectedAnnotationShapeIds: annSet,
+        canvasInspectPicks: inspectPicks,
+      } = useShelfStore.getState();
       const selected = keptOutputs.filter((o) => selectedIds.has(o.id));
-      const annCount = useShelfStore.getState().selectedAnnotationShapeIds.size;
+      const annCount = annSet.size;
       const contextBits: string[] = [];
       if (selected.length) contextBits.push(`${selected.length} screen(s)`);
+      if (inspectPicks.length) {
+        contextBits.push(
+          `inspected: ${inspectPicks.map((p) => `${p.outputTitle} › ${p.componentName}`).join("; ")}`
+        );
+      }
       if (annCount) contextBits.push(`${annCount} annotation(s)`);
       const userContent =
         contextBits.length > 0
@@ -539,6 +563,96 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
 
   const canvasShellRef = useRef<HTMLDivElement>(null);
 
+  /** Canvas inspect tool: iframe posts SELECT with outputId → add chips for chat context. */
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      const d = e.data;
+      if (!d || typeof d !== "object") return;
+      if (d.type !== FIGRED_MSG.SELECT) return;
+      if (!d.outputId || typeof d.outputId !== "string") return;
+      if (useCanvasStore.getState().activeTool !== "inspect") return;
+      const inspectId = d.inspectId;
+      if (!inspectId || typeof inspectId !== "string") return;
+
+      const outputs = useChatStore
+        .getState()
+        .chats.filter((c) => c.spaceId === spaceId)
+        .flatMap((c) => c.messages.flatMap((m) => m.outputs));
+      const out = outputs.find((o) => o.id === d.outputId);
+      const outputTitle = out?.title ?? "Screen";
+
+      useShelfStore.getState().addCanvasInspectPick({
+        outputId: d.outputId,
+        inspectId,
+        componentName: String(d.componentName ?? "element"),
+        tagName: String(d.tagName ?? "div"),
+        outputTitle,
+      });
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [spaceId]);
+
+  // Listen for design-editor check-in events and update tldraw shapes
+  useEffect(() => {
+    if (!editor) return;
+    const onCheckIn = (e: Event) => {
+      const { outputId, html } = (e as CustomEvent).detail as { outputId: string; html: string };
+      const shapeId = `shape:${outputId}` as TLShapeId;
+      const shape = editor.getShape(shapeId);
+      if (shape) {
+        if (shape.type === "output-card") {
+          editor.updateShape({ id: shapeId, type: "output-card", props: { content: html } });
+        } else if (shape.type === "html-preview") {
+          editor.updateShape({ id: shapeId, type: "html-preview", props: { htmlContent: html } });
+        }
+      }
+    };
+    window.addEventListener("figred:design-checkin", onCheckIn);
+    return () => window.removeEventListener("figred:design-checkin", onCheckIn);
+  }, [editor]);
+
+  // Keyboard shortcuts for canvas tools
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      )
+        return;
+
+      const key = e.key.toLowerCase();
+      const toolMap: Record<string, CanvasTool> = {
+        v: "select",
+        i: "inspect",
+        d: "draw",
+        s: "marquee",
+        m: "marquee",
+        h: "pan",
+      };
+      const tool = toolMap[key];
+      if (!tool) return;
+
+      e.preventDefault();
+      useCanvasStore.getState().setActiveTool(tool);
+      if (editor) {
+        const tldrawTool =
+          tool === "draw"
+            ? "draw"
+            : tool === "pan"
+              ? "hand"
+              : "select";
+        editor.setCurrentTool(tldrawTool);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [editor]);
+
+  const activeTool = useCanvasStore((s) => s.activeTool);
+
   useEffect(() => {
     if (!editor) return;
     const drainDeselectQueue = () => {
@@ -560,7 +674,10 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
   }, [editor]);
 
   return (
-    <div ref={canvasShellRef} className="relative h-full min-h-0">
+    <div
+      ref={canvasShellRef}
+      className={cn("relative h-full min-h-0", activeTool === "marquee" && "cursor-crosshair")}
+    >
       {/* tldraw instance */}
       <div className="absolute inset-0">
         <Tldraw
@@ -572,6 +689,9 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
           }}
         />
       </div>
+
+      {/* Marquee screenshot overlay */}
+      <MarqueeOverlay canvasShellRef={canvasShellRef} />
 
       {/* Custom toolbar (left edge) */}
       <CanvasToolbar editor={editor} />
@@ -594,6 +714,7 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
         onSend={handleCanvasPrompt}
         onFullScreen={handleFullScreen}
         onPreview={handlePreview}
+        onEdit={handleEdit}
         onMoreMenuAction={handleSelectionMoreMenu}
       />
     </div>

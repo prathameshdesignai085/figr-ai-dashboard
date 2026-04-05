@@ -46,6 +46,8 @@ export interface Message {
   content: string;
   outputs: Output[];
   contextItemIds: string[];
+  /** Base64 data URLs of marquee screenshots attached to this message. */
+  screenshotUrls?: string[];
   timestamp: string;
 }
 
@@ -111,9 +113,27 @@ export interface InspectedElement {
   };
 }
 
+export interface DesignNode {
+  id: string;
+  tag: string;
+  name: string;
+  type: "frame" | "text" | "image" | "component";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  styles: Record<string, string>;
+  textContent?: string;
+  src?: string;
+  children: DesignNode[];
+  parentId: string | null;
+  locked: boolean;
+  visible: boolean;
+}
+
 export interface ContainerTab {
   id: string;
-  type: "document" | "prototype" | "code" | "canvas" | "output" | "preview";
+  type: "document" | "prototype" | "code" | "canvas" | "output" | "preview" | "design-editor";
   title: string;
   content: string;
   pinned?: boolean;

@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Plus,
@@ -55,7 +57,21 @@ export function LeftPanel({ collapsed, onToggle }: LeftPanelProps) {
     <div className="flex h-full w-64 flex-col border-r border-border bg-background">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
-        <span className="text-base font-semibold tracking-tight">figred</span>
+        <Link
+          href="/"
+          className="relative flex h-7 shrink-0 items-center hover:opacity-90 transition-opacity"
+          aria-label="Figred home"
+        >
+          <Image
+            src="/figred.png"
+            alt="Figred"
+            width={351}
+            height={155}
+            unoptimized
+            className="h-7 w-[58px] object-contain object-left brightness-[0.85]"
+            priority
+          />
+        </Link>
         <div className="flex items-center gap-1">
           <button
             onClick={() => router.push("/")}

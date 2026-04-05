@@ -26,6 +26,8 @@ export function ChatPanel({ space }: { space: Space }) {
   const selectedAnnotationShapeIds = useShelfStore(
     (s) => s.selectedAnnotationShapeIds
   );
+  const canvasInspectPicks = useShelfStore((s) => s.canvasInspectPicks);
+  const marqueeCaptures = useShelfStore((s) => s.marqueeCaptures);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasSentMessage = useRef(false);
 
@@ -45,16 +47,35 @@ export function ChatPanel({ space }: { space: Space }) {
         title: o.title,
         kind: "output" as const,
       }));
+    const inspectChips: ContextChip[] = canvasInspectPicks.map((p) => ({
+      id: p.key,
+      title: `${p.outputTitle} › ${p.componentName}`,
+      kind: "inspect" as const,
+    }));
     const sortedAnn = [...selectedAnnotationShapeIds].sort();
     const annotationChips: ContextChip[] = sortedAnn.map((shapeId, i) => ({
       id: shapeId,
       title: `Annotation ${i + 1}`,
       kind: "annotation" as const,
     }));
-    return [...outputChips, ...annotationChips];
-  }, [allOutputs, selectedOutputIds, selectedAnnotationShapeIds]);
+    const screenshotChips: ContextChip[] = marqueeCaptures.map((cap) => ({
+      id: cap.id,
+      title: cap.label,
+      kind: "screenshot" as const,
+      dataUrl: cap.dataUrl,
+    }));
+    return [...outputChips, ...inspectChips, ...annotationChips, ...screenshotChips];
+  }, [allOutputs, selectedOutputIds, canvasInspectPicks, selectedAnnotationShapeIds, marqueeCaptures]);
 
   const handleRemoveContextChip = useCallback((chip: ContextChip) => {
+    if (chip.kind === "screenshot") {
+      useShelfStore.getState().removeMarqueeCapture(chip.id);
+      return;
+    }
+    if (chip.kind === "inspect") {
+      useShelfStore.getState().removeCanvasInspectPick(chip.id);
+      return;
+    }
     if (chip.kind === "output") {
       useCanvasDeselectStore
         .getState()
@@ -102,21 +123,32 @@ export function ChatPanel({ space }: { space: Space }) {
         closeSidebar();
       }
 
-      const { selectedOutputIds: outIds, selectedAnnotationShapeIds: annIds } =
-        useShelfStore.getState();
+      const {
+        selectedOutputIds: outIds,
+        selectedAnnotationShapeIds: annIds,
+        canvasInspectPicks: inspectPicks,
+        marqueeCaptures: captures,
+      } = useShelfStore.getState();
       const outputTitles = allOutputs
         .filter((o) => outIds.has(o.id))
         .map((o) => o.title);
+      const inspectLabels = inspectPicks.map(
+        (p) => `${p.outputTitle} › ${p.componentName} (${p.tagName})`
+      );
       const annLabels = [...annIds]
         .sort()
         .map((_, i) => `Annotation ${i + 1}`);
-      const canvasLabels = [...outputTitles, ...annLabels];
+      const screenshotLabels = captures.map((c) => c.label);
+      const canvasLabels = [...outputTitles, ...inspectLabels, ...annLabels, ...screenshotLabels];
       const fullContent =
         canvasLabels.length > 0
           ? `${content}\n\n— Selected on canvas: ${canvasLabels.join(", ")}`
           : content;
 
-      // Add user message (mock — in real app this would call AI)
+      const screenshotUrls = captures
+        .map((c) => c.dataUrl)
+        .filter((url) => url.length > 0);
+
       const msgId = `msg-${Date.now()}`;
       useChatStore.setState((state) => ({
         chats: state.chats.map((chat) =>
@@ -133,6 +165,8 @@ export function ChatPanel({ space }: { space: Space }) {
                     content: fullContent,
                     outputs: [],
                     contextItemIds: [],
+                    screenshotUrls:
+                      screenshotUrls.length > 0 ? screenshotUrls : undefined,
                     timestamp: new Date().toISOString(),
                   },
                 ],
@@ -140,6 +174,11 @@ export function ChatPanel({ space }: { space: Space }) {
             : chat
         ),
       }));
+
+      // Clear marquee captures after sending
+      if (captures.length > 0) {
+        useShelfStore.getState().clearMarqueeCaptures();
+      }
     },
     [activeChat, closeSidebar, allOutputs]
   );
