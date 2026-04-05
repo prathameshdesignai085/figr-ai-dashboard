@@ -3,6 +3,19 @@ import type { ContainerTab } from "@/types";
 
 type SidebarMode = "context" | "shelf";
 
+function sortTabsPinnedOrder(tabs: ContainerTab[]): ContainerTab[] {
+  const canvas = tabs.filter((t) => t.type === "canvas");
+  const preview = tabs.filter((t) => t.type === "preview");
+  const rest = tabs.filter((t) => t.type !== "canvas" && t.type !== "preview");
+  return [...canvas, ...preview, ...rest];
+}
+
+function isTabPinned(tab: ContainerTab): boolean {
+  if (tab.pinned) return true;
+  if (tab.type === "canvas" || tab.type === "preview") return true;
+  return false;
+}
+
 interface WorkspaceState {
   // Panel visibility
   containerOpen: boolean;
@@ -27,6 +40,11 @@ interface WorkspaceState {
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
   openCanvasTab: () => void;
+  /** Open/focus canvas, or collapse the container when canvas is already active (top-bar toggle). */
+  toggleCanvasTab: () => void;
+  /** Opens or focuses Preview tab for a build project (pinned, after Canvas). */
+  openPreviewTab: (buildProjectId: string, projectName?: string) => void;
+  removeTabsForBuildProject: (buildProjectId: string) => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -65,8 +83,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     if (existing) {
       set({ activeTabId: tab.id, containerOpen: true });
     } else {
+      const merged = sortTabsPinnedOrder([...state.tabs, tab]);
       set({
-        tabs: [...state.tabs, tab],
+        tabs: merged,
         activeTabId: tab.id,
         containerOpen: true,
       });
@@ -75,6 +94,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   closeTab: (tabId) => {
     const state = get();
+    const tab = state.tabs.find((t) => t.id === tabId);
+    if (!tab || isTabPinned(tab)) return;
+
     const newTabs = state.tabs.filter((t) => t.id !== tabId);
     const newActiveId =
       state.activeTabId === tabId
@@ -103,12 +125,66 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         type: "canvas",
         title: "Canvas",
         content: "",
+        pinned: true,
+        closable: false,
       };
       set({
-        tabs: [...state.tabs, tab],
+        tabs: sortTabsPinnedOrder([...state.tabs, tab]),
         activeTabId: tab.id,
         containerOpen: true,
       });
     }
+  },
+
+  toggleCanvasTab: () => {
+    const state = get();
+    if (state.containerOpen && state.activeTabId === "canvas") {
+      set({ containerOpen: false });
+      return;
+    }
+    get().openCanvasTab();
+  },
+
+  openPreviewTab: (buildProjectId, projectName) => {
+    const id = `preview-${buildProjectId}`;
+    const state = get();
+    const existing = state.tabs.find((t) => t.id === id);
+    if (existing) {
+      set({ activeTabId: id, containerOpen: true });
+      return;
+    }
+    const tab: ContainerTab = {
+      id,
+      type: "preview",
+      title: projectName ? `Preview · ${projectName}` : "Preview",
+      content: "",
+      pinned: true,
+      closable: false,
+      buildProjectId,
+    };
+    set({
+      tabs: sortTabsPinnedOrder([...state.tabs, tab]),
+      activeTabId: tab.id,
+      containerOpen: true,
+    });
+  },
+
+  removeTabsForBuildProject: (buildProjectId) => {
+    const state = get();
+    const prefix = `code-${buildProjectId}-`;
+    const newTabs = state.tabs.filter(
+      (t) =>
+        t.id !== `preview-${buildProjectId}` &&
+        !t.id.startsWith(prefix)
+    );
+    let activeTabId = state.activeTabId;
+    if (!newTabs.some((t) => t.id === activeTabId)) {
+      activeTabId = newTabs.length ? newTabs[newTabs.length - 1].id : null;
+    }
+    set({
+      tabs: newTabs,
+      activeTabId,
+      containerOpen: newTabs.length > 0,
+    });
   },
 }));

@@ -79,7 +79,8 @@ export class HtmlPreviewShapeUtil extends BaseBoxShapeUtil<HtmlPreviewShape> {
             flexDirection: "column",
             overflow: "hidden",
             borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.08)",
+            border: "1px solid rgba(144,131,255,0.45)",
+            boxShadow: "0 0 0 1px rgba(144,131,255,0.12), 0 8px 24px rgba(0,0,0,0.35)",
             background: "#0a0a0a",
             fontFamily:
               '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -144,35 +145,51 @@ export class HtmlPreviewShapeUtil extends BaseBoxShapeUtil<HtmlPreviewShape> {
               {title}
             </div>
 
-            {/* Live badge */}
+            {/* Built / coded product badge */}
             <div
               style={{
                 display: "flex",
-                alignItems: "center",
-                gap: 4,
-                background: "rgba(34,197,94,0.1)",
-                borderRadius: 10,
+                flexDirection: "column",
+                alignItems: "flex-end",
+                gap: 1,
+                background: "rgba(144,131,255,0.12)",
+                borderRadius: 8,
                 padding: "2px 6px",
+                border: "1px solid rgba(144,131,255,0.25)",
               }}
             >
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span
+                  style={{
+                    width: 5,
+                    height: 5,
+                    borderRadius: "50%",
+                    background: "rgb(167,139,250)",
+                    display: "inline-block",
+                    animation: "pulse 2s ease-in-out infinite",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: "rgb(196,181,253)",
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  Built
+                </span>
+              </div>
               <span
                 style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: "50%",
-                  background: "rgb(74,222,128)",
-                  display: "inline-block",
-                  animation: "pulse 2s ease-in-out infinite",
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 9,
-                  fontWeight: 600,
-                  color: "rgb(74,222,128)",
+                  fontSize: 7,
+                  fontWeight: 500,
+                  color: "rgba(196,181,253,0.65)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
                 }}
               >
-                Live
+                Coded
               </span>
             </div>
           </div>

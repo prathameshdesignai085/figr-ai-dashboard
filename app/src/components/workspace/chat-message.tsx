@@ -13,7 +13,7 @@ export function ChatMessage({
   const isUser = message.role === "user";
 
   return (
-    <div className="px-4 py-3">
+    <div className="py-3">
       {/* Role label */}
       <div className="mb-2">
         <span className="text-xs font-medium text-foreground/40">

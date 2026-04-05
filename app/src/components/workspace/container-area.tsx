@@ -7,7 +7,14 @@ import { DocumentPreview } from "./document-preview";
 import { PrototypeBrowser } from "./prototype-browser";
 import { CodeView } from "./code-view";
 import { CanvasPanel } from "./canvas-panel";
+import { BuildPreviewPanel } from "./build-preview/build-preview-panel";
+import { OutputHtmlPreview } from "./output-html-preview";
 import { motion, AnimatePresence } from "framer-motion";
+
+function isLikelyHtml(content: string): boolean {
+  const t = content.trim();
+  return t.startsWith("<!") || t.startsWith("<html") || t.startsWith("<div") || t.startsWith("<body");
+}
 
 export function ContainerArea({ space }: { space: Space }) {
   const { tabs, activeTabId } = useWorkspaceStore();
@@ -24,11 +31,17 @@ export function ContainerArea({ space }: { space: Space }) {
     if (activeTab.type === "canvas") {
       return <CanvasPanel spaceId={space.id} />;
     }
+    if (activeTab.type === "preview" && activeTab.buildProjectId) {
+      return <BuildPreviewPanel buildProjectId={activeTab.buildProjectId} />;
+    }
     if (activeTab.type === "prototype") {
       return <PrototypeBrowser />;
     }
     if (activeTab.type === "code") {
       return <CodeView tab={activeTab} />;
+    }
+    if (activeTab.type === "output" && isLikelyHtml(activeTab.content)) {
+      return <OutputHtmlPreview html={activeTab.content} />;
     }
     return <DocumentPreview tab={activeTab} />;
   };

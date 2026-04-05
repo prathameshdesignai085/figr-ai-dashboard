@@ -113,7 +113,30 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    /* Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) var(--background);
   }
+
+  /* Chrome, Edge, Safari — native scrollbars (e.g. overflow-y-auto) default to a light track */
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: var(--background);
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted);
+  }
+
   body {
     @apply bg-background text-foreground;
   }

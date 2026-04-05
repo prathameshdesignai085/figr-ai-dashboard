@@ -64,13 +64,62 @@ export interface Output {
   kept: boolean;
   keptAt: string | null;
   canvasPosition: { x: number; y: number } | null;
+  /** Set on built canvas items — links to `BuildProject.id` for Preview tab. */
+  buildProjectId?: string;
+}
+
+export interface ProjectFile {
+  id: string;
+  path: string;
+  name: string;
+  content: string;
+  language: "tsx" | "ts" | "css" | "json" | "html";
+}
+
+export interface ProjectRoute {
+  path: string;
+  label: string;
+  filePath: string;
+  /** Self-contained HTML for sandboxed iframe preview (until a real bundler exists). */
+  previewHtml: string;
+}
+
+export interface BuildProject {
+  id: string;
+  outputId: string;
+  name: string;
+  framework: "react" | "nextjs";
+  files: ProjectFile[];
+  routes: ProjectRoute[];
+  dependencies: Record<string, string>;
+  entryFile: string;
+}
+
+export interface InspectedElement {
+  componentName: string;
+  tagName: string;
+  styles: {
+    fontSize?: string;
+    fontWeight?: string;
+    textAlign?: string;
+    color?: string;
+    backgroundColor?: string;
+    opacity?: string;
+    borderColor?: string;
+    borderWidth?: string;
+    borderRadius?: string;
+  };
 }
 
 export interface ContainerTab {
   id: string;
-  type: "document" | "prototype" | "code" | "canvas" | "output";
+  type: "document" | "prototype" | "code" | "canvas" | "output" | "preview";
   title: string;
   content: string;
+  pinned?: boolean;
+  closable?: boolean;
+  buildProjectId?: string;
+  filePath?: string;
   outputId?: string;
   contextItemId?: string;
 }

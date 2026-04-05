@@ -65,13 +65,21 @@ export function WorkspaceLayout({
         ref={containerRef}
         className="flex flex-1 overflow-hidden"
       >
-        {/* Chat Panel */}
+        {/* Chat Panel — flex-1 when canvas closed so shelf shares the row (100% width would clip the sidebar) */}
         <div
-          className="flex shrink-0 flex-col overflow-hidden"
-          style={{
-            width: containerOpen ? `${chatWidth}px` : "100%",
-            transition: isResizing ? "none" : "width 200ms ease",
-          }}
+          className={
+            containerOpen
+              ? "flex shrink-0 flex-col overflow-hidden"
+              : "flex min-w-0 flex-1 flex-col overflow-hidden"
+          }
+          style={
+            containerOpen
+              ? {
+                  width: `${chatWidth}px`,
+                  transition: isResizing ? "none" : "width 200ms ease",
+                }
+              : undefined
+          }
         >
           <ChatPanel space={space} />
         </div>

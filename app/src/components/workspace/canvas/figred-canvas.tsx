@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { TLShapeId } from "@tldraw/tlschema";
 import {
   Tldraw,
   Editor,
@@ -11,13 +12,20 @@ import "tldraw/tldraw.css";
 import type { Output } from "@/types";
 import { useChatStore } from "@/stores/useChatStore";
 import { useShelfStore } from "@/stores/useShelfStore";
+import { useCanvasDeselectStore } from "@/stores/useCanvasDeselectStore";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { CanvasToolbar } from "./canvas-toolbar";
-import { SelectionActionBar } from "./selection-action-bar";
+import {
+  SelectionActionBar,
+  type SelectionMoreMenuAction,
+} from "./selection-action-bar";
 import { AnnotationPrompt } from "./annotation-prompt";
 import { OutputCardShapeUtil } from "./output-shape";
 import { HtmlPreviewShapeUtil } from "./html-preview-shape";
 import { nanoid } from "nanoid";
+import { useBuildStore } from "@/stores/useBuildStore";
+import { mockBuildFromOutput } from "@/lib/build-project/mock-build-from-output";
+import { isAppLikeOutput } from "@/lib/output-view-mode";
 
 // Hide all default tldraw UI — we provide our own
 const components: TLComponents = {
@@ -79,8 +87,8 @@ function addOutputShape(editor: Editor, output: Output, x: number, y: number) {
 
 export function FigredCanvas({ spaceId }: { spaceId: string }) {
   const editorRef = useRef<Editor | null>(null);
+  const [editor, setEditor] = useState<Editor | null>(null);
   const { chats } = useChatStore();
-  const { openTab } = useWorkspaceStore();
   const shapesCreatedRef = useRef(false);
 
   // Get all kept outputs
@@ -161,55 +169,190 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
     [spaceId, addOutputToCanvasAndChat]
   );
 
-  /** Handle "Build this" */
+  /** Handle "Build this" — user + assistant messages in chat, scaffold project, canvas card, Preview tab */
   const handleBuildThis = useCallback(
     (sourceOutput: Output) => {
       const editor = editorRef.current;
       if (!editor) return;
 
+      const project = mockBuildFromOutput(sourceOutput);
+      useBuildStore.getState().upsertProject(project);
+      useWorkspaceStore.getState().openPreviewTab(project.id, project.name);
+
+      const primaryHtml = project.routes[0]?.previewHtml ?? "";
       const id = `out-${nanoid(6)}`;
-      const hifi: Output = {
+      const activeChatId = useChatStore.getState().activeChatId;
+      const built: Output = {
         id,
         messageId: "",
-        chatId: useChatStore.getState().activeChatId || "",
+        chatId: activeChatId || "",
         spaceId,
         type: sourceOutput.type,
-        fidelity: "hi-fi",
-        title: `${sourceOutput.title} (Hi-fi)`,
-        summary: `High-fidelity version of "${sourceOutput.title}".`,
-        content: sourceOutput.content,
+        fidelity: "built",
+        title: `${sourceOutput.title} (Built)`,
+        summary: `Coded product — ${project.files.length} files, ${project.routes.length} routes.`,
+        content: primaryHtml,
         kept: true,
         keptAt: new Date().toISOString(),
+        buildProjectId: project.id,
         canvasPosition: {
           x: (sourceOutput.canvasPosition?.x ?? 200) + 520,
           y: sourceOutput.canvasPosition?.y ?? 200,
         },
       };
-      addOutputToCanvasAndChat(hifi);
+
+      if (activeChatId) {
+        const userMsgId = `msg-${nanoid(6)}`;
+        const asstMsgId = `msg-${nanoid(6)}`;
+        useChatStore.setState((state) => ({
+          chats: state.chats.map((chat) =>
+            chat.id === activeChatId
+              ? {
+                  ...chat,
+                  updatedAt: new Date().toISOString(),
+                  messages: [
+                    ...chat.messages,
+                    {
+                      id: userMsgId,
+                      chatId: activeChatId,
+                      role: "user" as const,
+                      content: `Build **${sourceOutput.title}** into a coded product.`,
+                      outputs: [],
+                      contextItemIds: [],
+                      timestamp: new Date().toISOString(),
+                    },
+                    {
+                      id: asstMsgId,
+                      chatId: activeChatId,
+                      role: "assistant" as const,
+                      content:
+                        "Added a **Built** card on the canvas with a full-file scaffold. Use **Preview** on that card (or this tab) to explore the live preview and codebase.",
+                      outputs: [built],
+                      contextItemIds: [],
+                      timestamp: new Date().toISOString(),
+                    },
+                  ],
+                }
+              : chat
+          ),
+        }));
+      }
+
+      addOutputShape(
+        editor,
+        built,
+        built.canvasPosition?.x ?? 400,
+        built.canvasPosition?.y ?? 300
+      );
     },
-    [spaceId, addOutputToCanvasAndChat]
+    [spaceId]
   );
 
-  /** Handle "Full screen" — opens output in focused tab */
-  const handleFullScreen = useCallback(
-    (output: Output) => {
-      openTab({
-        id: `output-${output.id}`,
-        type: "output",
-        title: output.title,
-        content: output.content,
-        outputId: output.id,
-      });
+  /** Documents / diagrams — focused tab */
+  const handleFullScreen = useCallback((output: Output) => {
+    useWorkspaceStore.getState().openTab({
+      id: `output-${output.id}`,
+      type: "output",
+      title: output.title,
+      content: output.content,
+      outputId: output.id,
+    });
+  }, []);
+
+  /** Prototypes / built — Preview tab (coded) or output iframe */
+  const handlePreview = useCallback((output: Output) => {
+    if (output.fidelity === "built" && output.buildProjectId) {
+      const proj = useBuildStore.getState().getProject(output.buildProjectId);
+      useWorkspaceStore.getState().openPreviewTab(
+        output.buildProjectId,
+        proj?.name
+      );
+      return;
+    }
+    useWorkspaceStore.getState().openTab({
+      id: `output-${output.id}`,
+      type: "output",
+      title: output.title,
+      content: output.content,
+      outputId: output.id,
+    });
+  }, []);
+
+  /** Kebab menu on selection bar — design system, Figma, remix (chat + mock assistant) */
+  const handleSelectionMoreMenu = useCallback(
+    (action: SelectionMoreMenuAction, outputs: Output[]) => {
+      const activeChatId = useChatStore.getState().activeChatId;
+      if (!activeChatId || outputs.length === 0) return;
+
+      const names = outputs.map((o) => o.title).join(", ");
+      const userLines: Record<SelectionMoreMenuAction, string> = {
+        "design-system": `Create a design system out of **${names}**.`,
+        figma: `Copy **${names}** to Figma.`,
+        remix: `Remix **${names}** in a new space.`,
+      };
+      const assistLines: Record<SelectionMoreMenuAction, string> = {
+        "design-system":
+          "I will extract tokens, components, and usage from this screen into a structured design system. (Mock — connect generation when backend is ready.)",
+        figma:
+          "Preparing a Figma-ready handoff for this screen. (Mock — connect Figma export when available.)",
+        remix:
+          "Cloning this design into a new space with its own chat and canvas. (Mock — wire space creation next.)",
+      };
+
+      const userMsgId = `msg-${nanoid(6)}`;
+      const asstMsgId = `msg-${nanoid(6)}`;
+      useChatStore.setState((state) => ({
+        chats: state.chats.map((chat) =>
+          chat.id === activeChatId
+            ? {
+                ...chat,
+                updatedAt: new Date().toISOString(),
+                messages: [
+                  ...chat.messages,
+                  {
+                    id: userMsgId,
+                    chatId: activeChatId,
+                    role: "user" as const,
+                    content: userLines[action],
+                    outputs: [],
+                    contextItemIds: [],
+                    timestamp: new Date().toISOString(),
+                  },
+                  {
+                    id: asstMsgId,
+                    chatId: activeChatId,
+                    role: "assistant" as const,
+                    content: assistLines[action],
+                    outputs: [],
+                    contextItemIds: [],
+                    timestamp: new Date().toISOString(),
+                  },
+                ],
+              }
+            : chat
+        ),
+      }));
     },
-    [openTab]
+    []
   );
 
-  /** Handle prompt from floating selection bar */
+  /** Handle prompt from floating selection bar (single prompt or multi combine) */
   const handleCanvasPrompt = useCallback(
     (message: string) => {
       const editor = editorRef.current;
       const activeChatId = useChatStore.getState().activeChatId;
       if (!activeChatId) return;
+
+      const selectedIds = useShelfStore.getState().selectedOutputIds;
+      const selected = keptOutputs.filter((o) => selectedIds.has(o.id));
+      const annCount = useShelfStore.getState().selectedAnnotationShapeIds.size;
+      const contextBits: string[] = [];
+      if (selected.length) contextBits.push(`${selected.length} screen(s)`);
+      if (annCount) contextBits.push(`${annCount} annotation(s)`);
+      const userContent =
+        contextBits.length > 0
+          ? `${message}\n\n— Canvas context: ${contextBits.join(", ")}`
+          : message;
 
       // Add user message
       const userMsgId = `msg-${nanoid(6)}`;
@@ -225,7 +368,7 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
                     id: userMsgId,
                     chatId: activeChatId,
                     role: "user" as const,
-                    content: message,
+                    content: userContent,
                     outputs: [],
                     contextItemIds: [],
                     timestamp: new Date().toISOString(),
@@ -236,13 +379,35 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
         ),
       }));
 
-      // Mock AI response
-      const id = `out-${nanoid(6)}`;
       const viewport = editor?.getViewportScreenBounds();
       const centerX = viewport ? viewport.w / 2 : 400;
       const centerY = viewport ? viewport.h / 2 : 300;
       const pageCenter = editor?.screenToPage({ x: centerX, y: centerY }) ?? { x: 400, y: 300 };
 
+      if (selected.length >= 2) {
+        const id = `out-${nanoid(6)}`;
+        const merged: Output = {
+          id,
+          messageId: "",
+          chatId: activeChatId,
+          spaceId,
+          type: "screen",
+          fidelity: "hi-fi",
+          title: `Combined (${selected.length})`,
+          summary: `Merged with instruction: "${message.slice(0, 120)}${message.length > 120 ? "…" : ""}"`,
+          content: selected.map((o) => `<!-- ${o.title} -->\n${o.content}`).join("\n\n"),
+          kept: true,
+          keptAt: new Date().toISOString(),
+          canvasPosition: { x: pageCenter.x - 240, y: pageCenter.y - 190 },
+        };
+        addOutputToCanvasAndChat(merged);
+        editor?.setSelectedShapes([]);
+        useShelfStore.getState().clearSelection();
+        setTimeout(() => editor?.zoomToFit({ animation: { duration: 300 } }), 100);
+        return;
+      }
+
+      const id = `out-${nanoid(6)}`;
       const newOutput: Output = {
         id,
         messageId: "",
@@ -259,56 +424,99 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
       };
       addOutputToCanvasAndChat(newOutput);
     },
-    [spaceId, addOutputToCanvasAndChat]
+    [spaceId, keptOutputs, addOutputToCanvasAndChat]
   );
 
   const handleMount = useCallback(
-    (editor: Editor) => {
-      editorRef.current = editor;
+    (mounted: Editor) => {
+      editorRef.current = mounted;
+      setEditor(mounted);
+
+      const getKeptOutputs = () =>
+        useChatStore
+          .getState()
+          .chats.filter((c) => c.spaceId === spaceId)
+          .flatMap((c) => c.messages.flatMap((m) => m.outputs))
+          .filter((o) => o.kept);
 
       // Set dark mode
-      editor.user.updateUserPreferences({ colorScheme: "dark" });
+      mounted.user.updateUserPreferences({ colorScheme: "dark" });
 
       // Create shapes for kept outputs
-      if (!shapesCreatedRef.current && keptOutputs.length > 0) {
+      const initialKept = getKeptOutputs();
+      if (!shapesCreatedRef.current && initialKept.length > 0) {
         shapesCreatedRef.current = true;
 
-        keptOutputs.forEach((output, index) => {
+        initialKept.forEach((output, index) => {
           const x = output.canvasPosition?.x ?? (index % 3) * 460 + 50;
           const y = output.canvasPosition?.y ?? Math.floor(index / 3) * 380 + 50;
-          addOutputShape(editor, output, x, y);
+          addOutputShape(mounted, output, x, y);
         });
 
         setTimeout(() => {
-          editor.zoomToFit({ animation: { duration: 300 } });
+          mounted.zoomToFit({ animation: { duration: 300 } });
         }, 100);
       }
 
       // Selection → shelf store sync
       const handleSelectionChange = () => {
-        const selectedShapes = editor.getSelectedShapes();
+        const list = getKeptOutputs();
+        const selectedShapes = mounted.getSelectedShapes();
         const selectedIds = new Set(
           selectedShapes
             .map((s) => s.id.replace("shape:", ""))
-            .filter((id) => keptOutputs.some((o) => o.id === id))
+            .filter((id) => list.some((o) => o.id === id))
+        );
+
+        const annotationIds = new Set(
+          selectedShapes
+            .filter((s) => s.type === "draw" || s.type === "highlight")
+            .map((s) => s.id)
         );
 
         const currentSelected = useShelfStore.getState().selectedOutputIds;
         const currentArr = [...currentSelected].sort().join(",");
         const newArr = [...selectedIds].sort().join(",");
-        if (currentArr !== newArr) {
-          useShelfStore.setState({ selectedOutputIds: selectedIds });
+
+        const currentAnn = useShelfStore.getState().selectedAnnotationShapeIds;
+        const annArr = [...currentAnn].sort().join(",");
+        const newAnnArr = [...annotationIds].sort().join(",");
+
+        if (currentArr !== newArr || annArr !== newAnnArr) {
+          useShelfStore.setState({
+            ...(currentArr !== newArr ? { selectedOutputIds: selectedIds } : {}),
+            ...(annArr !== newAnnArr
+              ? { selectedAnnotationShapeIds: annotationIds }
+              : {}),
+          });
         }
       };
 
-      // Double-click → full screen
+      // Double-click → Preview (app-like) or Full screen (documents)
       const handleDoubleClick = () => {
-        const selectedShapes = editor.getSelectedShapes();
+        const selectedShapes = mounted.getSelectedShapes();
         if (selectedShapes.length === 1) {
           const shapeId = selectedShapes[0].id.replace("shape:", "");
-          const output = keptOutputs.find((o) => o.id === shapeId);
-          if (output) {
-            openTab({
+          const output = getKeptOutputs().find((o) => o.id === shapeId);
+          if (!output) return;
+          if (isAppLikeOutput(output)) {
+            if (output.fidelity === "built" && output.buildProjectId) {
+              const proj = useBuildStore.getState().getProject(output.buildProjectId);
+              useWorkspaceStore.getState().openPreviewTab(
+                output.buildProjectId,
+                proj?.name
+              );
+            } else {
+              useWorkspaceStore.getState().openTab({
+                id: `output-${output.id}`,
+                type: "output",
+                title: output.title,
+                content: output.content,
+                outputId: output.id,
+              });
+            }
+          } else {
+            useWorkspaceStore.getState().openTab({
               id: `output-${output.id}`,
               type: "output",
               title: output.title,
@@ -319,18 +527,40 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
         }
       };
 
-      editor.on("change", handleSelectionChange);
-      editor.on("event", (event) => {
+      mounted.on("change", handleSelectionChange);
+      mounted.on("event", (event) => {
         if (event.name === "double_click" && event.type === "click") {
           handleDoubleClick();
         }
       });
     },
-    [keptOutputs, openTab]
+    [spaceId]
   );
 
+  const canvasShellRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!editor) return;
+    const drainDeselectQueue = () => {
+      const { queue } = useCanvasDeselectStore.getState();
+      if (queue.length === 0) return;
+      const ids = [...queue];
+      useCanvasDeselectStore.setState({ queue: [] });
+      for (const id of ids) {
+        try {
+          editor.deselect(id as TLShapeId);
+        } catch {
+          /* shape removed */
+        }
+      }
+    };
+    const unsub = useCanvasDeselectStore.subscribe(drainDeselectQueue);
+    drainDeselectQueue();
+    return unsub;
+  }, [editor]);
+
   return (
-    <div className="relative h-full">
+    <div ref={canvasShellRef} className="relative h-full min-h-0">
       {/* tldraw instance */}
       <div className="absolute inset-0">
         <Tldraw
@@ -344,23 +574,27 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
       </div>
 
       {/* Custom toolbar (left edge) */}
-      <CanvasToolbar editor={editorRef.current} />
+      <CanvasToolbar editor={editor} />
 
       {/* Annotation prompt (draw mode) */}
       <AnnotationPrompt
-        editor={editorRef.current}
+        editor={editor}
+        overlayContainerRef={canvasShellRef}
         keptOutputs={keptOutputs}
         onSend={handleCanvasPrompt}
       />
 
       {/* Selection action bar + prompt (floating, below selection) */}
       <SelectionActionBar
-        editor={editorRef.current}
+        editor={editor}
+        overlayContainerRef={canvasShellRef}
         keptOutputs={keptOutputs}
         onCreateVariations={handleCreateVariations}
         onBuildThis={handleBuildThis}
         onSend={handleCanvasPrompt}
         onFullScreen={handleFullScreen}
+        onPreview={handlePreview}
+        onMoreMenuAction={handleSelectionMoreMenu}
       />
     </div>
   );

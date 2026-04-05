@@ -21,8 +21,14 @@ export function WorkspaceTopBar({
   onSettingsClick: () => void;
 }) {
   const router = useRouter();
-  const { toggleSidebar, sidebarOpen, sidebarMode, openCanvasTab, containerOpen } =
-    useWorkspaceStore();
+  const {
+    toggleSidebar,
+    sidebarOpen,
+    sidebarMode,
+    toggleCanvasTab,
+    containerOpen,
+    activeTabId,
+  } = useWorkspaceStore();
 
   return (
     <div className="flex h-11 shrink-0 items-center justify-between border-b border-white/[0.06] bg-background px-3">
@@ -65,10 +71,11 @@ export function WorkspaceTopBar({
           Shelf
         </button>
         <button
-          onClick={() => openCanvasTab()}
+          type="button"
+          onClick={() => toggleCanvasTab()}
           className={cn(
             "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs transition-colors",
-            containerOpen && useWorkspaceStore.getState().activeTabId === "canvas"
+            containerOpen && activeTabId === "canvas"
               ? "bg-white/[0.08] text-foreground/80"
               : "text-foreground/40 hover:text-foreground/60 hover:bg-white/[0.04]"
           )}

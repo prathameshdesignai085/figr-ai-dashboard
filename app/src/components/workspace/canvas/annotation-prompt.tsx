@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type RefObject } from "react";
 import { ArrowUp } from "lucide-react";
 import type { Editor } from "tldraw";
 import type { Output } from "@/types";
@@ -36,10 +36,12 @@ function findNearestOutputShape(editor: Editor, drawShapeId: string, keptOutputs
 
 export function AnnotationPrompt({
   editor,
+  overlayContainerRef,
   keptOutputs,
   onSend,
 }: {
   editor: Editor | null;
+  overlayContainerRef: RefObject<HTMLElement | null>;
   keptOutputs: Output[];
   onSend?: (message: string, annotatedOutputId?: string) => void;
 }) {
@@ -69,11 +71,20 @@ export function AnnotationPrompt({
         const lastShape = drawShapes[drawShapes.length - 1];
         const bounds = editor.getShapePageBounds(lastShape);
         if (bounds) {
+          const shell = overlayContainerRef.current;
           const screenPoint = editor.pageToScreen({
             x: bounds.x + bounds.w / 2,
             y: bounds.y + bounds.h + 8,
           });
-          setPosition({ x: screenPoint.x, y: screenPoint.y });
+          if (shell) {
+            const rect = shell.getBoundingClientRect();
+            setPosition({
+              x: screenPoint.x - rect.left,
+              y: screenPoint.y - rect.top,
+            });
+          } else {
+            setPosition({ x: screenPoint.x, y: screenPoint.y });
+          }
           setVisible(true);
 
           // Find nearest output shape
@@ -87,7 +98,7 @@ export function AnnotationPrompt({
     return () => {
       editor.off("change", handleChange);
     };
-  }, [editor, activeTool, keptOutputs]);
+  }, [editor, activeTool, keptOutputs, overlayContainerRef]);
 
   if (!visible || !position || activeTool !== "draw") return null;
 
