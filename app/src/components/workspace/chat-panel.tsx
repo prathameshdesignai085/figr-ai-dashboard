@@ -196,7 +196,7 @@ export function ChatPanel({ space }: { space: Space }) {
       {/* Main chat area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Chat top bar — fixed row height; title truncates instead of wrapping */}
-        <div className="flex h-10 shrink-0 min-h-10 min-w-0 flex-nowrap items-center gap-1 border-b border-white/[0.06] px-2">
+        <div className="flex h-9 shrink-0 min-h-9 min-w-0 flex-nowrap items-center gap-1 border-b border-white/[0.06] px-2">
           <div className="flex min-h-7 min-w-0 flex-1 items-center gap-1 overflow-hidden">
             <button
               type="button"

@@ -14,7 +14,12 @@ const tools: {
   { id: "select", icon: MousePointer2, label: "Select", shortcut: "V" },
   { id: "inspect", icon: MousePointerClick, label: "Inspect element", shortcut: "I" },
   { id: "draw", icon: Pencil, label: "Draw / Annotate", shortcut: "D" },
-  { id: "marquee", icon: ScanLine, label: "Screenshot", shortcut: "S" },
+  {
+    id: "marquee",
+    icon: ScanLine,
+    label: "Screenshot",
+    shortcut: "⌘M / Ctrl+M",
+  },
   { id: "pan", icon: Hand, label: "Pan", shortcut: "H" },
 ];
 

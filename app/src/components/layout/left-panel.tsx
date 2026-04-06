@@ -8,6 +8,10 @@ import {
   Star,
   PanelLeftClose,
   PanelLeftOpen,
+  LayoutGrid,
+  BookOpen,
+  Plug,
+  Settings,
 } from "lucide-react";
 import { useSpaceStore } from "@/stores/useSpaceStore";
 import { useChatStore } from "@/stores/useChatStore";
@@ -92,16 +96,21 @@ export function LeftPanel({ collapsed, onToggle }: LeftPanelProps) {
 
       <ScrollArea className="flex-1 px-2">
         {/* Spaces */}
-        <div className="py-2">
+        <div className="py-2 space-y-0.5">
           <button
+            type="button"
             onClick={() => router.push("/spaces")}
-            className="flex w-full items-center px-2 py-1"
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+              isActive("/spaces")
+                ? "bg-white/[0.06] text-foreground"
+                : "text-foreground/60 hover:text-foreground/90 hover:bg-white/[0.04]"
+            )}
           >
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors">
-              Spaces
-            </span>
+            <LayoutGrid size={14} className="shrink-0" strokeWidth={1.75} aria-hidden />
+            Spaces
           </button>
-          <div className="mt-1 space-y-0.5">
+          <div className="space-y-0.5">
             {favoriteSpaces.map((space) => (
               <button
                 key={space.id}
@@ -139,36 +148,42 @@ export function LeftPanel({ collapsed, onToggle }: LeftPanelProps) {
         {/* Nav links */}
         <div className="py-2 space-y-0.5">
           <button
+            type="button"
             onClick={() => router.push("/knowledge")}
             className={cn(
-              "flex w-full items-center rounded-md px-2 py-1.5 text-sm transition-colors",
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
               isActivePrefix("/knowledge")
                 ? "bg-white/[0.06] text-foreground"
                 : "text-foreground/60 hover:text-foreground/90 hover:bg-white/[0.04]"
             )}
           >
+            <BookOpen size={14} className="shrink-0" strokeWidth={1.75} aria-hidden />
             Product Knowledge
           </button>
           <button
+            type="button"
             onClick={() => router.push("/integrations")}
             className={cn(
-              "flex w-full items-center rounded-md px-2 py-1.5 text-sm transition-colors",
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
               isActive("/integrations")
                 ? "bg-white/[0.06] text-foreground"
                 : "text-foreground/60 hover:text-foreground/90 hover:bg-white/[0.04]"
             )}
           >
+            <Plug size={14} className="shrink-0" strokeWidth={1.75} aria-hidden />
             Integrations
           </button>
           <button
+            type="button"
             onClick={() => router.push("/settings")}
             className={cn(
-              "flex w-full items-center rounded-md px-2 py-1.5 text-sm transition-colors",
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
               isActive("/settings")
                 ? "bg-white/[0.06] text-foreground"
                 : "text-foreground/60 hover:text-foreground/90 hover:bg-white/[0.04]"
             )}
           >
+            <Settings size={14} className="shrink-0" strokeWidth={1.75} aria-hidden />
             Settings
           </button>
         </div>

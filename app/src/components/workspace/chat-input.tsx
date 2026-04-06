@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   ChatComposer,
   type ComposerContextChip,
@@ -19,6 +19,29 @@ export function ChatInput({
 }) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const onFocusComposer = () => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      const len = el.value.length;
+      try {
+        el.setSelectionRange(len, len);
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener(
+      "figred:focus-workspace-chat-composer",
+      onFocusComposer
+    );
+    return () =>
+      window.removeEventListener(
+        "figred:focus-workspace-chat-composer",
+        onFocusComposer
+      );
+  }, []);
 
   // Text area height is fixed in ChatComposer (112px); no auto-resize override needed
 

@@ -150,6 +150,12 @@ export interface ContextItem {
   type: "document" | "link" | "image" | "spreadsheet" | "recording" | "figma";
   source: string; // e.g., "upload", "google-docs", "figma", "website"
   addedAt: string;
+  /** Raw body for user-added items (upload / paste); shown in document tab when set. */
+  content?: string;
+  /** Linked from product knowledge — already canonical; no “push” needed. */
+  fromProductKnowledge?: boolean;
+  /** Set when this space artifact was pushed to product knowledge. */
+  pushedToProductKnowledgeAt?: string;
 }
 
 export interface KnowledgeItem {

@@ -614,7 +614,35 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
 
   // Keyboard shortcuts for canvas tools
   useEffect(() => {
+    const focusWorkspaceChat = () => {
+      queueMicrotask(() => {
+        window.dispatchEvent(new CustomEvent("figred:focus-workspace-chat-composer"));
+      });
+    };
+
+    const applyTldrawTool = (tool: CanvasTool) => {
+      if (!editor) return;
+      const tldrawTool =
+        tool === "draw" ? "draw" : tool === "pan" ? "hand" : "select";
+      editor.setCurrentTool(tldrawTool);
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      const modM =
+        (e.metaKey || e.ctrlKey) &&
+        key === "m" &&
+        !e.altKey &&
+        !e.repeat;
+
+      if (modM) {
+        e.preventDefault();
+        useCanvasStore.getState().setActiveTool("marquee");
+        applyTldrawTool("marquee");
+        focusWorkspaceChat();
+        return;
+      }
+
       const target = e.target as HTMLElement;
       if (
         target.tagName === "INPUT" ||
@@ -623,13 +651,10 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
       )
         return;
 
-      const key = e.key.toLowerCase();
       const toolMap: Record<string, CanvasTool> = {
         v: "select",
         i: "inspect",
         d: "draw",
-        s: "marquee",
-        m: "marquee",
         h: "pan",
       };
       const tool = toolMap[key];
@@ -637,15 +662,7 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
 
       e.preventDefault();
       useCanvasStore.getState().setActiveTool(tool);
-      if (editor) {
-        const tldrawTool =
-          tool === "draw"
-            ? "draw"
-            : tool === "pan"
-              ? "hand"
-              : "select";
-        editor.setCurrentTool(tldrawTool);
-      }
+      applyTldrawTool(tool);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);

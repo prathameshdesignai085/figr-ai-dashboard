@@ -31,6 +31,16 @@ export const useSpaceStore = create<SpaceState>((set, get) => ({
           type: "document",
           source: "google-docs",
           addedAt: "2026-03-28T10:00:00Z",
+          fromProductKnowledge: true,
+        },
+        {
+          id: "ctx-ds-draft",
+          name: "Checkout design system (exploration)",
+          type: "figma",
+          source: "paste",
+          addedAt: "2026-03-30T14:00:00Z",
+          content:
+            "# Checkout design system (draft)\n\nTokens, components, and layout rules being explored for this space only.",
         },
         {
           id: "ctx-2",
@@ -38,6 +48,24 @@ export const useSpaceStore = create<SpaceState>((set, get) => ({
           type: "spreadsheet",
           source: "upload",
           addedAt: "2026-03-29T09:00:00Z",
+        },
+        {
+          id: "ctx-brainstorm",
+          name: "Payment options brainstorm",
+          type: "document",
+          source: "paste",
+          addedAt: "2026-03-31T11:20:00Z",
+          content:
+            "## Options\n- Card\n- Wallet\n- BNPL\n\nOpen questions: liability, regions…",
+        },
+        {
+          id: "ctx-audit",
+          name: "Competitor checkout audit",
+          type: "document",
+          source: "upload",
+          addedAt: "2026-04-01T09:00:00Z",
+          pushedToProductKnowledgeAt: "2026-04-01T16:00:00Z",
+          content: "# Competitor audit\n\nSummary of 4 flows and takeaways.",
         },
       ],
       connectedKnowledge: [

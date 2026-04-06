@@ -1,10 +1,21 @@
 import { create } from "zustand";
+import { nanoid } from "nanoid";
 import type { KnowledgeItem, KnowledgeCategory } from "@/types";
+
+export type PromoteToKnowledgeInput = {
+  category: KnowledgeCategory;
+  name: string;
+  type: KnowledgeItem["type"];
+  source: string;
+  content?: string;
+};
 
 interface KnowledgeState {
   items: KnowledgeItem[];
   getItemsByCategory: (category: KnowledgeCategory) => KnowledgeItem[];
   getCategoryCount: (category: KnowledgeCategory) => number;
+  /** Append items promoted from a space (source of truth update). */
+  promoteFromSpace: (entries: PromoteToKnowledgeInput[]) => KnowledgeItem[];
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
@@ -137,5 +148,20 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
 
   getCategoryCount: (category) => {
     return get().items.filter((i) => i.category === category).length;
+  },
+
+  promoteFromSpace: (entries) => {
+    const now = new Date().toISOString();
+    const created: KnowledgeItem[] = entries.map((e) => ({
+      id: `k-${nanoid(8)}`,
+      category: e.category,
+      name: e.name,
+      type: e.type,
+      source: e.source,
+      addedAt: now,
+      content: e.content,
+    }));
+    set((state) => ({ items: [...state.items, ...created] }));
+    return created;
   },
 }));
