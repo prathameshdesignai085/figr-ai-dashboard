@@ -7,8 +7,12 @@ import {
   Plus,
   Clock,
   MoreHorizontal,
+  MonitorPlay,
+  PenTool,
+  Scan,
+  Paperclip,
 } from "lucide-react";
-import type { Space } from "@/types";
+import type { Space, Shell } from "@/types";
 import { useChatStore } from "@/stores/useChatStore";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { useShelfStore } from "@/stores/useShelfStore";
@@ -18,9 +22,24 @@ import { ChatMessage } from "./chat-message";
 import { ChatInput, type ContextChip } from "./chat-input";
 import { ChatHistoryPanel } from "./chat-history-panel";
 
-export function ChatPanel({ space }: { space: Space }) {
+const shellQuickActions = [
+  { icon: MonitorPlay, label: "Record your screen" },
+  { icon: PenTool, label: "Attach Figma frames" },
+  { icon: Scan, label: "Capture webpage" },
+  { icon: Paperclip, label: "Upload an image" },
+] as const;
+
+export function ChatPanel(
+  props:
+    | { mode: "space"; space: Space }
+    | { mode: "shell"; shell: Shell }
+) {
   const router = useRouter();
-  const { getActiveChat, activeChatId, createChat, chats } = useChatStore();
+  const isShell = props.mode === "shell";
+  const space = props.mode === "space" ? props.space : null;
+  const shell = props.mode === "shell" ? props.shell : null;
+  const { getActiveChat, activeChatId, createChat, createShellChat, chats } =
+    useChatStore();
   const { chatHistoryOpen, toggleChatHistory, closeSidebar } = useWorkspaceStore();
   const selectedOutputIds = useShelfStore((s) => s.selectedOutputIds);
   const selectedAnnotationShapeIds = useShelfStore(
@@ -34,9 +53,10 @@ export function ChatPanel({ space }: { space: Space }) {
   const activeChat = getActiveChat();
   const messages = activeChat?.messages || [];
 
-  // Collect all outputs across all chats in this space for shelf context chips
   const allOutputs = chats
-    .filter((c) => c.spaceId === space.id)
+    .filter((c) =>
+      isShell ? c.shellId === shell!.id : c.spaceId === space!.id
+    )
     .flatMap((c) => c.messages.flatMap((m) => m.outputs));
 
   const contextChips = useMemo((): ContextChip[] => {
@@ -184,14 +204,24 @@ export function ChatPanel({ space }: { space: Space }) {
   );
 
   const handleNewChat = () => {
-    const chat = createChat(space.id);
-    router.push(`/space/${space.id}/chat/${chat.id}`);
+    if (isShell) {
+      const chat = createShellChat(shell!.id);
+      router.push(`/shells/${shell!.id}/chat/${chat.id}`);
+    } else {
+      const chat = createChat(space!.id);
+      router.push(`/space/${space!.id}/chat/${chat.id}`);
+    }
   };
 
   return (
     <div className="flex h-full">
       {/* Chat history panel (slide-out) */}
-      {chatHistoryOpen && <ChatHistoryPanel spaceId={space.id} />}
+      {chatHistoryOpen &&
+        (isShell ? (
+          <ChatHistoryPanel shellId={shell!.id} />
+        ) : (
+          <ChatHistoryPanel spaceId={space!.id} />
+        ))}
 
       {/* Main chat area */}
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -253,7 +283,9 @@ export function ChatPanel({ space }: { space: Space }) {
                     Start a conversation
                   </p>
                   <p className="mt-1 text-xs text-foreground/15">
-                    Ask anything about {space.name}
+                    {isShell
+                      ? `Describe layout, tokens, and components for ${shell!.name}`
+                      : `Ask anything about ${space!.name}`}
                   </p>
                 </div>
               </div>
@@ -273,7 +305,27 @@ export function ChatPanel({ space }: { space: Space }) {
         </div>
 
         {/* Input — same max width as thread */}
-        <div className="mx-auto w-full max-w-3xl shrink-0 px-4">
+        <div className="mx-auto w-full max-w-3xl shrink-0 px-4 pb-1">
+          {isShell ? (
+            <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {shellQuickActions.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  className="flex h-[72px] flex-col items-start justify-between rounded-xl border border-white/10 bg-transparent p-3 text-left transition-colors hover:border-white/[0.14] hover:bg-white/[0.02]"
+                >
+                  <action.icon
+                    size={18}
+                    strokeWidth={1.75}
+                    className="shrink-0 text-foreground/35"
+                  />
+                  <span className="text-[10px] leading-snug text-foreground/45">
+                    {action.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <ChatInput
             onSend={handleSend}
             contextChips={contextChips}

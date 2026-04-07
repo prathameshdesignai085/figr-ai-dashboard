@@ -1,15 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import type { Space, Stage } from "@/types";
 import { useSpaceStore } from "@/stores/useSpaceStore";
+import { useShellStore } from "@/stores/useShellStore";
+import { useChatStore } from "@/stores/useChatStore";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 const stages: { id: Stage; label: string }[] = [
@@ -28,11 +34,17 @@ export function SpaceSettingsPanel({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const router = useRouter();
   const { updateSpace } = useSpaceStore();
+  const createShellFromSpace = useShellStore((s) => s.createShellFromSpace);
+  const createShellChat = useChatStore((s) => s.createShellChat);
   const [name, setName] = useState(space.name);
   const [description, setDescription] = useState(space.description);
   const [stage, setStage] = useState<Stage>(space.stage);
   const [instructions, setInstructions] = useState(space.instructions);
+  const [saveAsShellOpen, setSaveAsShellOpen] = useState(false);
+  const [shellName, setShellName] = useState("");
+  const [shellDescription, setShellDescription] = useState("");
 
   useEffect(() => {
     setName(space.name);
@@ -41,12 +53,33 @@ export function SpaceSettingsPanel({
     setInstructions(space.instructions);
   }, [space, open]);
 
+  useEffect(() => {
+    if (!saveAsShellOpen) return;
+    setShellName(`${space.name} shell`);
+    setShellDescription(space.description);
+  }, [saveAsShellOpen, space.name, space.description]);
+
   const handleSave = () => {
     updateSpace(space.id, { name, description, stage, instructions });
     onOpenChange(false);
   };
 
+  const handleConfirmSaveAsShell = () => {
+    const n = shellName.trim();
+    if (!n) return;
+    const shell = createShellFromSpace(
+      space,
+      n,
+      shellDescription.trim() || undefined
+    );
+    const chat = createShellChat(shell.id, "Main");
+    setSaveAsShellOpen(false);
+    onOpenChange(false);
+    router.push(`/shells/${shell.id}/chat/${chat.id}`);
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg !gap-0" showCloseButton={false}>
         <DialogHeader>
@@ -116,6 +149,25 @@ export function SpaceSettingsPanel({
           </div>
         </div>
 
+        <div className="border-t border-white/[0.06] pt-5">
+          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-foreground/35">
+            Shells
+          </p>
+          <p className="mb-3 text-xs text-foreground/40">
+            Copy this space&apos;s context and instructions into a reusable shell
+            in the library.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full border-white/[0.1] text-foreground/70"
+            onClick={() => setSaveAsShellOpen(true)}
+          >
+            Save as Shell
+          </Button>
+        </div>
+
         <DialogFooter>
           <button
             onClick={() => onOpenChange(false)}
@@ -132,5 +184,67 @@ export function SpaceSettingsPanel({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <Dialog open={saveAsShellOpen} onOpenChange={setSaveAsShellOpen}>
+      <DialogContent className="sm:max-w-md" showCloseButton>
+        <DialogHeader>
+          <DialogTitle>Save as Shell</DialogTitle>
+          <DialogDescription>
+            Creates a new shell with this space&apos;s context items, connected
+            knowledge, and instructions. You can open it from Shells anytime.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="space-y-1.5">
+            <label
+              htmlFor="save-shell-name"
+              className="text-xs font-medium text-foreground/45"
+            >
+              Shell name
+            </label>
+            <Input
+              id="save-shell-name"
+              value={shellName}
+              onChange={(e) => setShellName(e.target.value)}
+              placeholder="My shell"
+              className="bg-white/[0.03]"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="save-shell-desc"
+              className="text-xs font-medium text-foreground/45"
+            >
+              Description (optional)
+            </label>
+            <Input
+              id="save-shell-desc"
+              value={shellDescription}
+              onChange={(e) => setShellDescription(e.target.value)}
+              className="bg-white/[0.03]"
+            />
+          </div>
+        </div>
+        <DialogFooter className="gap-2 sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setSaveAsShellOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={!shellName.trim()}
+            onClick={handleConfirmSaveAsShell}
+          >
+            Create shell
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

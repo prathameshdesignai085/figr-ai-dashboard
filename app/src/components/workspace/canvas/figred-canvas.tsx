@@ -89,15 +89,32 @@ function addOutputShape(editor: Editor, output: Output, x: number, y: number) {
   }
 }
 
-export function FigredCanvas({ spaceId }: { spaceId: string }) {
+export function FigredCanvas({
+  spaceId,
+  shellId,
+}: {
+  spaceId?: string;
+  shellId?: string;
+}) {
+  const scopeSpaceId = spaceId ?? null;
+  const scopeShellId = shellId ?? null;
+
   const editorRef = useRef<Editor | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const { chats } = useChatStore();
   const shapesCreatedRef = useRef(false);
 
+  const chatBelongsToCanvas = useCallback(
+    (c: (typeof chats)[0]) =>
+      scopeShellId != null
+        ? c.shellId === scopeShellId
+        : c.spaceId === scopeSpaceId,
+    [scopeShellId, scopeSpaceId]
+  );
+
   // Get all kept outputs
   const keptOutputs: Output[] = chats
-    .filter((c) => c.spaceId === spaceId)
+    .filter(chatBelongsToCanvas)
     .flatMap((c) => c.messages.flatMap((m) => m.outputs))
     .filter((o) => o.kept);
 
@@ -153,7 +170,8 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
           id,
           messageId: "",
           chatId: useChatStore.getState().activeChatId || "",
-          spaceId,
+          spaceId: scopeSpaceId,
+          shellId: scopeShellId,
           type: sourceOutput.type,
           fidelity: sourceOutput.fidelity,
           title: `${sourceOutput.title} — V${i + 1}`,
@@ -170,7 +188,7 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
         editor.zoomToFit({ animation: { duration: 300 } });
       }, 100);
     },
-    [spaceId, addOutputToCanvasAndChat]
+    [scopeSpaceId, scopeShellId, addOutputToCanvasAndChat]
   );
 
   /** Handle "Build this" — user + assistant messages in chat, scaffold project, canvas card, Preview tab */
@@ -190,7 +208,8 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
         id,
         messageId: "",
         chatId: activeChatId || "",
-        spaceId,
+        spaceId: scopeSpaceId,
+        shellId: scopeShellId,
         type: sourceOutput.type,
         fidelity: "built",
         title: `${sourceOutput.title} (Built)`,
@@ -249,7 +268,7 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
         built.canvasPosition?.y ?? 300
       );
     },
-    [spaceId]
+    [scopeSpaceId, scopeShellId]
   );
 
   /** Documents / diagrams — focused tab */
@@ -414,7 +433,8 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
           id,
           messageId: "",
           chatId: activeChatId,
-          spaceId,
+          spaceId: scopeSpaceId,
+          shellId: scopeShellId,
           type: "screen",
           fidelity: "hi-fi",
           title: `Combined (${selected.length})`,
@@ -436,7 +456,8 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
         id,
         messageId: "",
         chatId: activeChatId,
-        spaceId,
+        spaceId: scopeSpaceId,
+        shellId: scopeShellId,
         type: "screen",
         fidelity: "wireframe",
         title: message.slice(0, 50),
@@ -448,7 +469,7 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
       };
       addOutputToCanvasAndChat(newOutput);
     },
-    [spaceId, keptOutputs, addOutputToCanvasAndChat]
+    [scopeSpaceId, scopeShellId, keptOutputs, addOutputToCanvasAndChat]
   );
 
   const handleMount = useCallback(
@@ -459,7 +480,11 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
       const getKeptOutputs = () =>
         useChatStore
           .getState()
-          .chats.filter((c) => c.spaceId === spaceId)
+          .chats.filter((c) =>
+            scopeShellId != null
+              ? c.shellId === scopeShellId
+              : c.spaceId === scopeSpaceId
+          )
           .flatMap((c) => c.messages.flatMap((m) => m.outputs))
           .filter((o) => o.kept);
 
@@ -558,7 +583,7 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
         }
       });
     },
-    [spaceId]
+    [scopeSpaceId, scopeShellId]
   );
 
   const canvasShellRef = useRef<HTMLDivElement>(null);
@@ -576,7 +601,11 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
 
       const outputs = useChatStore
         .getState()
-        .chats.filter((c) => c.spaceId === spaceId)
+        .chats.filter((c) =>
+          scopeShellId != null
+            ? c.shellId === scopeShellId
+            : c.spaceId === scopeSpaceId
+        )
         .flatMap((c) => c.messages.flatMap((m) => m.outputs));
       const out = outputs.find((o) => o.id === d.outputId);
       const outputTitle = out?.title ?? "Screen";
@@ -591,7 +620,7 @@ export function FigredCanvas({ spaceId }: { spaceId: string }) {
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [spaceId]);
+  }, [scopeSpaceId, scopeShellId]);
 
   // Listen for design-editor check-in events and update tldraw shapes
   useEffect(() => {

@@ -8,7 +8,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
 
-  const isWorkspace = pathname.startsWith("/space/") || pathname.startsWith("/chat/");
+  const isShellBuilder = /^\/shells\/[^/]+\/chat\/[^/]+/.test(pathname);
+  const isWorkspace =
+    pathname.startsWith("/space/") ||
+    pathname.startsWith("/chat/") ||
+    isShellBuilder;
 
   if (isWorkspace) {
     return (

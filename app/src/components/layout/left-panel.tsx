@@ -9,6 +9,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LayoutGrid,
+  Layers,
   BookOpen,
   Plug,
   Settings,
@@ -52,6 +53,14 @@ export function LeftPanel({ collapsed, onToggle }: LeftPanelProps) {
           title="New chat"
         >
           <Plus size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push("/shells")}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors"
+          title="Shells"
+        >
+          <Layers size={16} strokeWidth={1.75} aria-hidden />
         </button>
       </div>
     );
@@ -147,6 +156,19 @@ export function LeftPanel({ collapsed, onToggle }: LeftPanelProps) {
 
         {/* Nav links */}
         <div className="py-2 space-y-0.5">
+          <button
+            type="button"
+            onClick={() => router.push("/shells")}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+              isActivePrefix("/shells")
+                ? "bg-white/[0.06] text-foreground"
+                : "text-foreground/60 hover:text-foreground/90 hover:bg-white/[0.04]"
+            )}
+          >
+            <Layers size={14} className="shrink-0" strokeWidth={1.75} aria-hidden />
+            Shells
+          </button>
           <button
             type="button"
             onClick={() => router.push("/knowledge")}

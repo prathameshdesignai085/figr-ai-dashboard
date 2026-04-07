@@ -20,11 +20,12 @@ import {
   Library,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-import type { Space, ContextItem, Output, KnowledgeCategory } from "@/types";
+import type { Space, Shell, ContextItem, Output, KnowledgeCategory } from "@/types";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { useShelfStore } from "@/stores/useShelfStore";
 import { useChatStore } from "@/stores/useChatStore";
 import { useSpaceStore } from "@/stores/useSpaceStore";
+import { useShellStore } from "@/stores/useShellStore";
 import { useKnowledgeStore } from "@/stores/useKnowledgeStore";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -81,14 +82,20 @@ function contextItemIsSyncedToPk(item: ContextItem) {
   return !item.fromProductKnowledge && !!item.pushedToProductKnowledgeAt;
 }
 
-export function ContextShelfSidebar({ space }: { space: Space }) {
+export function ContextShelfSidebar({
+  workspace,
+}: {
+  workspace: Space | Shell;
+}) {
+  const isSpace = "stage" in workspace;
   const { sidebarMode, setSidebarMode, openTab } = useWorkspaceStore();
   const { selectedOutputIds, toggleOutputSelection } = useShelfStore();
   const { chats } = useChatStore();
 
-  // Get all kept outputs in this space
   const keptOutputs: (Output & { chatName: string })[] = chats
-    .filter((c) => c.spaceId === space.id)
+    .filter((c) =>
+      isSpace ? c.spaceId === workspace.id : c.shellId === workspace.id
+    )
     .flatMap((c) =>
       c.messages
         .flatMap((m) => m.outputs)
@@ -156,7 +163,10 @@ export function ContextShelfSidebar({ space }: { space: Space }) {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {sidebarMode === "context" ? (
-          <ContextView space={space} onOpenItem={handleOpenContextItem} />
+          <ContextView
+            workspace={workspace}
+            onOpenItem={handleOpenContextItem}
+          />
         ) : (
           <ShelfView
             outputs={keptOutputs}
@@ -171,13 +181,15 @@ export function ContextShelfSidebar({ space }: { space: Space }) {
 }
 
 function ContextView({
-  space,
+  workspace,
   onOpenItem,
 }: {
-  space: Space;
+  workspace: Space | Shell;
   onOpenItem: (item: ContextItem) => void;
 }) {
+  const isSpace = "stage" in workspace;
   const updateSpace = useSpaceStore((s) => s.updateSpace);
+  const updateShell = useShellStore((s) => s.updateShell);
   const promoteFromSpace = useKnowledgeStore((s) => s.promoteFromSpace);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
@@ -190,25 +202,25 @@ function ContextView({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const pushableItems = useMemo(
-    () => space.contextItems.filter(contextItemNeedsPushIndicator),
-    [space.contextItems]
+    () => workspace.contextItems.filter(contextItemNeedsPushIndicator),
+    [workspace.contextItems]
   );
 
   const linkedToProductKnowledgeCount = useMemo(
     () =>
-      space.contextItems.filter(
+      workspace.contextItems.filter(
         (i) => i.fromProductKnowledge || !!i.pushedToProductKnowledgeAt
       ).length,
-    [space.contextItems]
+    [workspace.contextItems]
   );
 
   const openPushDialog = useCallback(() => {
     const defaultCat =
-      space.connectedKnowledge[0] ?? ("feature-specs" as KnowledgeCategory);
+      workspace.connectedKnowledge[0] ?? ("feature-specs" as KnowledgeCategory);
     setPushCategory(defaultCat);
     setSelectedPushIds(new Set(pushableItems.map((i) => i.id)));
     setPushPkOpen(true);
-  }, [pushableItems, space.connectedKnowledge]);
+  }, [pushableItems, workspace.connectedKnowledge]);
 
   const togglePushSelect = useCallback((id: string) => {
     setSelectedPushIds((prev) => {
@@ -220,7 +232,10 @@ function ContextView({
   }, []);
 
   const handlePushToProductKnowledge = useCallback(() => {
-    const toPush = space.contextItems.filter((i) => selectedPushIds.has(i.id));
+    if (!isSpace) return;
+    const toPush = workspace.contextItems.filter((i) =>
+      selectedPushIds.has(i.id)
+    );
     if (toPush.length === 0) return;
     const now = new Date().toISOString();
     promoteFromSpace(
@@ -234,8 +249,8 @@ function ContextView({
           `# ${item.name}\n\n_Exported from space context._`,
       }))
     );
-    updateSpace(space.id, {
-      contextItems: space.contextItems.map((item) =>
+    updateSpace(workspace.id, {
+      contextItems: workspace.contextItems.map((item) =>
         selectedPushIds.has(item.id)
           ? { ...item, pushedToProductKnowledgeAt: now }
           : item
@@ -244,21 +259,28 @@ function ContextView({
     setPushPkOpen(false);
     setSelectedPushIds(new Set());
   }, [
+    isSpace,
     promoteFromSpace,
     pushCategory,
     selectedPushIds,
-    space.contextItems,
-    space.id,
+    workspace.contextItems,
+    workspace.id,
     updateSpace,
   ]);
 
   const appendItem = useCallback(
     (item: ContextItem) => {
-      updateSpace(space.id, {
-        contextItems: [...space.contextItems, item],
-      });
+      if (isSpace) {
+        updateSpace(workspace.id, {
+          contextItems: [...workspace.contextItems, item],
+        });
+      } else {
+        updateShell(workspace.id, {
+          contextItems: [...workspace.contextItems, item],
+        });
+      }
     },
-    [space.contextItems, space.id, updateSpace]
+    [isSpace, workspace.contextItems, workspace.id, updateSpace, updateShell]
   );
 
   useEffect(() => {
@@ -329,7 +351,7 @@ function ContextView({
       <div>
         <div className="relative mb-2 flex items-center gap-1" ref={menuRef}>
           <h4 className="min-w-0 flex-1 text-[10px] font-medium uppercase tracking-wider text-foreground/25">
-            Space Context
+            {isSpace ? "Space Context" : "Shell Context"}
           </h4>
           <Button
             type="button"
@@ -387,26 +409,31 @@ function ContextView({
           />
         </div>
 
-        {space.contextItems.length > 0 ? (
+        {workspace.contextItems.length > 0 ? (
           <>
-            {space.contextItems.length > 1 ? (
+            {workspace.contextItems.length > 1 ? (
               <p className="mb-1.5 text-[9px] leading-snug text-foreground/30">
-                {space.contextItems.length} items ·{" "}
-                {linkedToProductKnowledgeCount} in product knowledge
-                {pushableItems.length > 0
-                  ? ` · ${pushableItems.length} to push`
-                  : ""}
+                {workspace.contextItems.length} items
+                {isSpace ? (
+                  <>
+                    {" · "}
+                    {linkedToProductKnowledgeCount} in product knowledge
+                    {pushableItems.length > 0
+                      ? ` · ${pushableItems.length} to push`
+                      : ""}
+                  </>
+                ) : null}
               </p>
             ) : null}
             <div
               className={cn(
                 "space-y-1 overflow-x-hidden overflow-y-auto pr-0.5 [scrollbar-width:thin]",
-                space.contextItems.length > 4
+                workspace.contextItems.length > 4
                   ? "max-h-[min(38vh,220px)]"
                   : "max-h-none"
               )}
             >
-              {space.contextItems.map((item) => {
+              {workspace.contextItems.map((item) => {
                 const Icon = contextTypeIcons[item.type] || FileText;
                 const pkTitle = item.fromProductKnowledge
                   ? "Linked from product knowledge"
@@ -455,7 +482,7 @@ function ContextView({
           <p className="px-0.5 text-xs text-foreground/20">No documents yet</p>
         )}
 
-        {pushableItems.length > 0 ? (
+        {isSpace && pushableItems.length > 0 ? (
           <Button
             type="button"
             variant="outline"
@@ -634,24 +661,24 @@ function ContextView({
         </DialogContent>
       </Dialog>
 
-      {space.instructions ? (
+      {workspace.instructions ? (
         <div>
           <h4 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-foreground/25">
             Instructions
           </h4>
           <p className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-3 text-xs leading-relaxed text-foreground/40">
-            {space.instructions}
+            {workspace.instructions}
           </p>
         </div>
       ) : null}
 
-      {space.connectedKnowledge.length > 0 ? (
+      {workspace.connectedKnowledge.length > 0 ? (
         <div>
           <h4 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-foreground/25">
             Connected Knowledge
           </h4>
           <div className="space-y-1">
-            {space.connectedKnowledge.map((cat) => (
+            {workspace.connectedKnowledge.map((cat) => (
               <div key={cat} className="flex items-center gap-2 rounded-md px-2 py-1.5">
                 <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/50" />
                 <span className="text-xs capitalize text-foreground/40">

@@ -14,6 +14,10 @@ interface ChatState {
   getIndependentChats: () => Chat[];
   getRecentChats: () => Chat[];
   createChat: (spaceId: string, name?: string) => Chat;
+  createShellChat: (shellId: string, name?: string) => Chat;
+  getChatsForShell: (shellId: string) => Chat[];
+  getActiveChatsForShell: (shellId: string) => Chat[];
+  getArchivedChatsForShell: (shellId: string) => Chat[];
   archiveChat: (chatId: string) => void;
 }
 
@@ -22,6 +26,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     {
       id: "chat-1",
       spaceId: "space-1",
+      shellId: null,
       name: "Checkout flow exploration",
       createdAt: "2026-03-28T10:30:00Z",
       updatedAt: "2026-04-02T14:30:00Z",
@@ -46,6 +51,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               messageId: "msg-2",
               chatId: "chat-1",
               spaceId: "space-1",
+              shellId: null,
               type: "approach",
               fidelity: "exploration",
               title: "Single-page checkout",
@@ -60,6 +66,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               messageId: "msg-2",
               chatId: "chat-1",
               spaceId: "space-1",
+              shellId: null,
               type: "approach",
               fidelity: "exploration",
               title: "Progressive disclosure wizard",
@@ -74,6 +81,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               messageId: "msg-2",
               chatId: "chat-1",
               spaceId: "space-1",
+              shellId: null,
               type: "approach",
               fidelity: "exploration",
               title: "Guest express checkout",
@@ -107,6 +115,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               messageId: "msg-4",
               chatId: "chat-1",
               spaceId: "space-1",
+              shellId: null,
               type: "wireframe",
               fidelity: "wireframe",
               title: "Single-page checkout wireframe",
@@ -131,6 +140,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               messageId: "msg-5a",
               chatId: "chat-1",
               spaceId: "space-1",
+              shellId: null,
               type: "screen",
               fidelity: "hi-fi",
               title: "Checkout — Hi-fi",
@@ -180,6 +190,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     {
       id: "chat-2",
       spaceId: "space-1",
+      shellId: null,
       name: "Payment UX research",
       createdAt: "2026-03-30T09:00:00Z",
       updatedAt: "2026-04-01T16:00:00Z",
@@ -204,6 +215,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               messageId: "msg-6",
               chatId: "chat-2",
               spaceId: "space-1",
+              shellId: null,
               type: "text_block",
               fidelity: "exploration",
               title: "Payment UX best practices 2026",
@@ -222,6 +234,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     {
       id: "chat-3",
       spaceId: "space-2",
+      shellId: null,
       name: "Onboarding approaches",
       createdAt: "2026-04-01T08:30:00Z",
       updatedAt: "2026-04-03T11:00:00Z",
@@ -230,6 +243,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     {
       id: "chat-4",
       spaceId: null,
+      shellId: null,
       name: "brainstorm pricing",
       createdAt: "2026-04-03T09:00:00Z",
       updatedAt: "2026-04-03T09:45:00Z",
@@ -238,6 +252,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     {
       id: "chat-5",
       spaceId: null,
+      shellId: null,
       name: "quick wireframe idea",
       createdAt: "2026-04-02T15:00:00Z",
       updatedAt: "2026-04-02T15:30:00Z",
@@ -246,9 +261,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     {
       id: "chat-6",
       spaceId: "space-1",
+      shellId: null,
       name: "Competitor analysis",
       createdAt: "2026-04-01T10:00:00Z",
       updatedAt: "2026-04-01T11:30:00Z",
+      messages: [],
+    },
+    {
+      id: "chat-shell-demo-1",
+      spaceId: null,
+      shellId: "shell-demo-1",
+      name: "Shell exploration",
+      createdAt: "2026-03-21T10:00:00Z",
+      updatedAt: "2026-03-25T09:00:00Z",
       messages: [],
     },
   ],
@@ -285,10 +310,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   getRecentChats: () => {
-    return [...get().chats].sort(
-      (a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
+    return [...get().chats]
+      .filter((c) => c.shellId === null)
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
   },
 
   createChat: (spaceId, name) => {
@@ -296,6 +323,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const chat: Chat = {
       id: `chat-${nanoid(6)}`,
       spaceId,
+      shellId: null,
       name: name || "New chat",
       createdAt: now,
       updatedAt: now,
@@ -306,6 +334,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
       activeChatId: chat.id,
     }));
     return chat;
+  },
+
+  createShellChat: (shellId, name) => {
+    const now = new Date().toISOString();
+    const chat: Chat = {
+      id: `chat-${nanoid(6)}`,
+      spaceId: null,
+      shellId,
+      name: name || "Shell chat",
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+    };
+    set((state) => ({
+      chats: [...state.chats, chat],
+      activeChatId: chat.id,
+    }));
+    return chat;
+  },
+
+  getChatsForShell: (shellId) => {
+    return get().chats.filter((c) => c.shellId === shellId);
+  },
+
+  getActiveChatsForShell: (shellId) => {
+    const state = get();
+    return state.chats.filter(
+      (c) => c.shellId === shellId && !state.archivedChatIds.has(c.id)
+    );
+  },
+
+  getArchivedChatsForShell: (shellId) => {
+    const state = get();
+    return state.chats.filter(
+      (c) => c.shellId === shellId && state.archivedChatIds.has(c.id)
+    );
   },
 
   archiveChat: (chatId) => {

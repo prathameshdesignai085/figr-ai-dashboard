@@ -1,6 +1,6 @@
 "use client";
 
-import type { Space } from "@/types";
+import type { Space, Shell } from "@/types";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { ContainerTabBar } from "./container-tab-bar";
 import { DocumentPreview } from "./document-preview";
@@ -10,6 +10,7 @@ import { CanvasPanel } from "./canvas-panel";
 import { BuildPreviewPanel } from "./build-preview/build-preview-panel";
 import { OutputHtmlPreview } from "./output-html-preview";
 import { DesignEditorPanel } from "./design-editor/design-editor-panel";
+import { ShellAppPreviewPanel } from "./shell-app-preview-panel";
 import { motion, AnimatePresence } from "framer-motion";
 
 function isLikelyHtml(content: string): boolean {
@@ -17,7 +18,8 @@ function isLikelyHtml(content: string): boolean {
   return t.startsWith("<!") || t.startsWith("<html") || t.startsWith("<div") || t.startsWith("<body");
 }
 
-export function ContainerArea({ space }: { space: Space }) {
+export function ContainerArea({ workspace }: { workspace: Space | Shell }) {
+  const isSpace = "stage" in workspace;
   const { tabs, activeTabId } = useWorkspaceStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
@@ -30,7 +32,22 @@ export function ContainerArea({ space }: { space: Space }) {
       );
     }
     if (activeTab.type === "canvas") {
-      return <CanvasPanel spaceId={space.id} />;
+      return (
+        <CanvasPanel
+          spaceId={isSpace ? workspace.id : undefined}
+          shellId={!isSpace ? workspace.id : undefined}
+        />
+      );
+    }
+    if (activeTab.type === "shell-app") {
+      if (!isSpace) {
+        return <ShellAppPreviewPanel shellId={workspace.id} />;
+      }
+      return (
+        <div className="flex h-full items-center justify-center">
+          <p className="text-sm text-foreground/30">App preview is only for shells</p>
+        </div>
+      );
     }
     if (activeTab.type === "preview" && activeTab.buildProjectId) {
       return <BuildPreviewPanel buildProjectId={activeTab.buildProjectId} />;

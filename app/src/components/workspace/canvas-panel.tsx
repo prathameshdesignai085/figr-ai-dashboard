@@ -2,6 +2,12 @@
 
 import { FigredCanvas } from "./canvas/figred-canvas";
 
-export function CanvasPanel({ spaceId }: { spaceId: string }) {
-  return <FigredCanvas spaceId={spaceId} />;
+export function CanvasPanel({
+  spaceId,
+  shellId,
+}: {
+  spaceId?: string;
+  shellId?: string;
+}) {
+  return <FigredCanvas spaceId={spaceId} shellId={shellId} />;
 }

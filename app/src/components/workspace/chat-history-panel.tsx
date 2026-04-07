@@ -8,28 +8,55 @@ import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 
-export function ChatHistoryPanel({ spaceId }: { spaceId: string }) {
+export function ChatHistoryPanel({
+  spaceId,
+  shellId,
+}: {
+  spaceId?: string;
+  shellId?: string;
+}) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
-  const { getActiveChatsForSpace, getArchivedChatsForSpace, activeChatId, createChat } = useChatStore();
+  const {
+    getActiveChatsForSpace,
+    getArchivedChatsForSpace,
+    getActiveChatsForShell,
+    getArchivedChatsForShell,
+    activeChatId,
+    createChat,
+    createShellChat,
+  } = useChatStore();
   const { toggleChatHistory } = useWorkspaceStore();
 
-  const activeChats = getActiveChatsForSpace(spaceId);
-  const archivedChats = getArchivedChatsForSpace(spaceId);
+  const activeChats = shellId
+    ? getActiveChatsForShell(shellId)
+    : getActiveChatsForSpace(spaceId!);
+  const archivedChats = shellId
+    ? getArchivedChatsForShell(shellId)
+    : getArchivedChatsForSpace(spaceId!);
 
   const filteredChats = search
     ? activeChats.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
     : activeChats;
 
   const handleNewChat = () => {
-    const chat = createChat(spaceId);
-    router.push(`/space/${spaceId}/chat/${chat.id}`);
+    if (shellId) {
+      const chat = createShellChat(shellId);
+      router.push(`/shells/${shellId}/chat/${chat.id}`);
+    } else {
+      const chat = createChat(spaceId!);
+      router.push(`/space/${spaceId}/chat/${chat.id}`);
+    }
     toggleChatHistory();
   };
 
   const handleSelectChat = (chatId: string) => {
-    router.push(`/space/${spaceId}/chat/${chatId}`);
+    if (shellId) {
+      router.push(`/shells/${shellId}/chat/${chatId}`);
+    } else {
+      router.push(`/space/${spaceId}/chat/${chatId}`);
+    }
     toggleChatHistory();
   };
 

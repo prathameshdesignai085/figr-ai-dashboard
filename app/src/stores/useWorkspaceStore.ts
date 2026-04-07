@@ -1,18 +1,28 @@
 import { create } from "zustand";
 import type { ContainerTab } from "@/types";
 
+/** Pinned tab id for shell builder app preview (light mock + built HTML slot). */
+export const SHELL_APP_PREVIEW_TAB_ID = "shell-app-preview";
+
 type SidebarMode = "context" | "shelf";
 
 function sortTabsPinnedOrder(tabs: ContainerTab[]): ContainerTab[] {
   const canvas = tabs.filter((t) => t.type === "canvas");
+  const shellApp = tabs.filter((t) => t.type === "shell-app");
   const preview = tabs.filter((t) => t.type === "preview");
-  const rest = tabs.filter((t) => t.type !== "canvas" && t.type !== "preview");
-  return [...canvas, ...preview, ...rest];
+  const rest = tabs.filter(
+    (t) =>
+      t.type !== "canvas" &&
+      t.type !== "shell-app" &&
+      t.type !== "preview"
+  );
+  return [...canvas, ...shellApp, ...preview, ...rest];
 }
 
 function isTabPinned(tab: ContainerTab): boolean {
   if (tab.pinned) return true;
-  if (tab.type === "canvas" || tab.type === "preview") return true;
+  if (tab.type === "canvas" || tab.type === "preview" || tab.type === "shell-app")
+    return true;
   return false;
 }
 
@@ -44,6 +54,14 @@ interface WorkspaceState {
   toggleCanvasTab: () => void;
   /** Opens or focuses Preview tab for a build project (pinned, after Canvas). */
   openPreviewTab: (buildProjectId: string, projectName?: string) => void;
+  /** Shell builder: pinned App preview tab after Canvas. */
+  openShellAppPreviewTab: () => void;
+  /**
+   * Shell builder entry: replace tabs with Canvas + App preview only (avoids leaking space tabs).
+   */
+  replaceShellWorkspacePinnedTabs: (preferredActiveTabId?: string) => void;
+  /** Space workspace: drop shell-only App preview tab (e.g. after navigating from shell). */
+  removeShellAppPreviewTabFromWorkspace: () => void;
   removeTabsForBuildProject: (buildProjectId: string) => void;
 }
 
@@ -166,6 +184,84 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       tabs: sortTabsPinnedOrder([...state.tabs, tab]),
       activeTabId: tab.id,
       containerOpen: true,
+    });
+  },
+
+  openShellAppPreviewTab: () => {
+    const state = get();
+    const existing = state.tabs.find((t) => t.id === SHELL_APP_PREVIEW_TAB_ID);
+    if (existing) {
+      set({
+        activeTabId: SHELL_APP_PREVIEW_TAB_ID,
+        containerOpen: true,
+      });
+      return;
+    }
+    const tab: ContainerTab = {
+      id: SHELL_APP_PREVIEW_TAB_ID,
+      type: "shell-app",
+      title: "App preview",
+      content: "",
+      pinned: true,
+      closable: false,
+    };
+    set({
+      tabs: sortTabsPinnedOrder([...state.tabs, tab]),
+      activeTabId: tab.id,
+      containerOpen: true,
+    });
+  },
+
+  replaceShellWorkspacePinnedTabs: (preferredActiveTabId) => {
+    const canvasTab: ContainerTab = {
+      id: "canvas",
+      type: "canvas",
+      title: "Canvas",
+      content: "",
+      pinned: true,
+      closable: false,
+    };
+    const shellAppTab: ContainerTab = {
+      id: SHELL_APP_PREVIEW_TAB_ID,
+      type: "shell-app",
+      title: "App preview",
+      content: "",
+      pinned: true,
+      closable: false,
+    };
+    const tabs = sortTabsPinnedOrder([canvasTab, shellAppTab]);
+    const active =
+      preferredActiveTabId &&
+      tabs.some((t) => t.id === preferredActiveTabId)
+        ? preferredActiveTabId
+        : canvasTab.id;
+    set({
+      tabs,
+      activeTabId: active,
+      containerOpen: true,
+    });
+  },
+
+  removeShellAppPreviewTabFromWorkspace: () => {
+    const state = get();
+    const newTabs = state.tabs.filter((t) => t.type !== "shell-app");
+    if (newTabs.length === state.tabs.length) return;
+
+    let activeTabId = state.activeTabId;
+    if (
+      !activeTabId ||
+      !newTabs.some((t) => t.id === activeTabId)
+    ) {
+      const canvasTab = newTabs.find((t) => t.type === "canvas");
+      activeTabId =
+        canvasTab?.id ??
+        (newTabs.length ? newTabs[newTabs.length - 1].id : null);
+    }
+
+    set({
+      tabs: newTabs,
+      activeTabId,
+      containerOpen: newTabs.length > 0 ? state.containerOpen : false,
     });
   },
 

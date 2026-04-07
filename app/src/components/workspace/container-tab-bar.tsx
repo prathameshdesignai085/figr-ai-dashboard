@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Layout, MonitorPlay, FolderTree, Pencil } from "lucide-react";
+import { X, Layout, MonitorPlay, FolderTree, Pencil, AppWindow } from "lucide-react";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { useBuildStore } from "@/stores/useBuildStore";
 import { cn } from "@/lib/utils";
@@ -36,10 +36,14 @@ export function ContainerTabBar() {
             }}
           >
             {tab.type === "canvas" && <Layout size={12} className="shrink-0" />}
+            {tab.type === "shell-app" && <AppWindow size={12} className="shrink-0" />}
             {tab.type === "preview" && <MonitorPlay size={12} className="shrink-0" />}
             {tab.type === "design-editor" && <Pencil size={12} className="shrink-0" />}
             <span className="truncate max-w-[120px]">{tab.title}</span>
-            {tab.closable !== false && tab.type !== "canvas" && tab.type !== "preview" && (
+            {tab.closable !== false &&
+              tab.type !== "canvas" &&
+              tab.type !== "preview" &&
+              tab.type !== "shell-app" && (
               <button
                 type="button"
                 onClick={(e) => {

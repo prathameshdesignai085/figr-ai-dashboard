@@ -28,11 +28,32 @@ export interface Space {
   contextItems: ContextItem[];
   connectedKnowledge: KnowledgeCategory[];
   instructions: string;
+  /** When this space was created via Remix from a shell. */
+  remixedFromShellId?: string;
+}
+
+/** Reusable app scaffold: layout, tokens, and context; remix into a Space to build features. */
+export interface Shell {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  contextItems: ContextItem[];
+  connectedKnowledge: KnowledgeCategory[];
+  instructions: string;
+  techStack: string;
+  designSystemNote: string;
+  tokenPreferences: string;
+  /** When this shell was saved from an existing space. */
+  sourceSpaceId?: string;
 }
 
 export interface Chat {
   id: string;
-  spaceId: string | null; // null = independent chat
+  spaceId: string | null; // null = independent chat or shell chat
+  /** When set, this chat belongs to a shell builder (mutually exclusive with spaceId for scoped work). */
+  shellId: string | null;
   name: string;
   createdAt: string;
   updatedAt: string;
@@ -58,6 +79,8 @@ export interface Output {
   messageId: string;
   chatId: string;
   spaceId: string | null;
+  /** Outputs generated while in a shell builder chat. */
+  shellId: string | null;
   type: OutputType;
   title: string;
   summary: string;
@@ -133,7 +156,15 @@ export interface DesignNode {
 
 export interface ContainerTab {
   id: string;
-  type: "document" | "prototype" | "code" | "canvas" | "output" | "preview" | "design-editor";
+  type:
+    | "document"
+    | "prototype"
+    | "code"
+    | "canvas"
+    | "output"
+    | "preview"
+    | "design-editor"
+    | "shell-app";
   title: string;
   content: string;
   pinned?: boolean;

@@ -96,6 +96,7 @@ export function DesignEditorPanel({ tab }: { tab: ContainerTab }) {
                       messageId: msgId,
                       chatId: activeChatId,
                       spaceId: chat.spaceId,
+                      shellId: chat.shellId,
                       type: "component" as const,
                       fidelity: "hi-fi" as const,
                       title: node.name,

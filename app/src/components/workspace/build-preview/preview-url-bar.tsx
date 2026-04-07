@@ -25,6 +25,7 @@ export function PreviewUrlBar({
   onToggleInspect,
   onRefresh,
   onOpenExternal,
+  className,
 }: {
   routes: ProjectRoute[];
   activePath: string;
@@ -35,6 +36,8 @@ export function PreviewUrlBar({
   onToggleInspect: () => void;
   onRefresh: () => void;
   onOpenExternal: () => void;
+  /** Optional; e.g. border-b-0 when wrapped in an outer bordered shell row. */
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -50,7 +53,12 @@ export function PreviewUrlBar({
   }, []);
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b border-white/[0.06] px-3 bg-background">
+    <div
+      className={cn(
+        "flex h-10 shrink-0 items-center gap-2 border-b border-white/[0.06] px-3 bg-background",
+        className
+      )}
+    >
       <div className="flex items-center gap-0.5 rounded-md border border-white/[0.08] p-0.5">
         {(["desktop", "tablet", "mobile"] as Device[]).map((d) => {
           const Icon = d === "desktop" ? Monitor : d === "tablet" ? Tablet : Smartphone;
