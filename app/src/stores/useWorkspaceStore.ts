@@ -10,18 +10,25 @@ function sortTabsPinnedOrder(tabs: ContainerTab[]): ContainerTab[] {
   const canvas = tabs.filter((t) => t.type === "canvas");
   const shellApp = tabs.filter((t) => t.type === "shell-app");
   const preview = tabs.filter((t) => t.type === "preview");
+  const onDevice = tabs.filter((t) => t.type === "on-device");
   const rest = tabs.filter(
     (t) =>
       t.type !== "canvas" &&
       t.type !== "shell-app" &&
-      t.type !== "preview"
+      t.type !== "preview" &&
+      t.type !== "on-device"
   );
-  return [...canvas, ...shellApp, ...preview, ...rest];
+  return [...canvas, ...shellApp, ...preview, ...onDevice, ...rest];
 }
 
 function isTabPinned(tab: ContainerTab): boolean {
   if (tab.pinned) return true;
-  if (tab.type === "canvas" || tab.type === "preview" || tab.type === "shell-app")
+  if (
+    tab.type === "canvas" ||
+    tab.type === "preview" ||
+    tab.type === "shell-app" ||
+    tab.type === "on-device"
+  )
     return true;
   return false;
 }
@@ -63,6 +70,9 @@ interface WorkspaceState {
   /** Space workspace: drop shell-only App preview tab (e.g. after navigating from shell). */
   removeShellAppPreviewTabFromWorkspace: () => void;
   removeTabsForBuildProject: (buildProjectId: string) => void;
+  /** Open or focus the "On Device" tab for the active space (QR + sessions + Snack runner). */
+  openOnDeviceTab: () => void;
+  toggleOnDeviceTab: () => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -263,6 +273,37 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       activeTabId,
       containerOpen: newTabs.length > 0 ? state.containerOpen : false,
     });
+  },
+
+  openOnDeviceTab: () => {
+    const state = get();
+    const existing = state.tabs.find((t) => t.type === "on-device");
+    if (existing) {
+      set({ activeTabId: existing.id, containerOpen: true });
+      return;
+    }
+    const tab: ContainerTab = {
+      id: "on-device",
+      type: "on-device",
+      title: "On Device",
+      content: "",
+      pinned: true,
+      closable: false,
+    };
+    set({
+      tabs: sortTabsPinnedOrder([...state.tabs, tab]),
+      activeTabId: tab.id,
+      containerOpen: true,
+    });
+  },
+
+  toggleOnDeviceTab: () => {
+    const state = get();
+    if (state.containerOpen && state.activeTabId === "on-device") {
+      set({ containerOpen: false });
+      return;
+    }
+    get().openOnDeviceTab();
   },
 
   removeTabsForBuildProject: (buildProjectId) => {

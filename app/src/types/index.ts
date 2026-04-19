@@ -1,5 +1,14 @@
 export type Stage = "brainstorm" | "wireframe" | "prototype" | "build";
 
+export type TargetPlatform = "web" | "mobile" | "universal";
+
+export type DevicePreset =
+  | "desktop"
+  | "tablet"
+  | "iphone-15-pro"
+  | "iphone-se"
+  | "pixel-8";
+
 export type OutputType =
   | "approach"
   | "wireframe"
@@ -21,6 +30,8 @@ export interface Space {
   name: string;
   description: string;
   stage: Stage;
+  /** Target platform that drives prompts, default device chrome, and mobile-first defaults. */
+  targetPlatform: TargetPlatform;
   isFavorite: boolean;
   createdAt: string;
   updatedAt: string;
@@ -91,6 +102,8 @@ export interface Output {
   canvasPosition: { x: number; y: number } | null;
   /** Set on built canvas items — links to `BuildProject.id` for Preview tab. */
   buildProjectId?: string;
+  /** "mobile" outputs render in phone-frame thumbnails and route to native preview. */
+  platform?: "web" | "mobile";
 }
 
 export interface ProjectFile {
@@ -113,11 +126,15 @@ export interface BuildProject {
   id: string;
   outputId: string;
   name: string;
-  framework: "react" | "nextjs";
+  framework: "react" | "nextjs" | "expo";
   files: ProjectFile[];
   routes: ProjectRoute[];
   dependencies: Record<string, string>;
   entryFile: string;
+  /** Platform this build targets; drives DeviceFrame default and OnDevice tab variant. */
+  targetPlatform?: TargetPlatform;
+  /** Native source for the embedded Snack runner when targetPlatform is mobile. */
+  snackSource?: string;
 }
 
 export interface InspectedElement {
@@ -164,7 +181,8 @@ export interface ContainerTab {
     | "output"
     | "preview"
     | "design-editor"
-    | "shell-app";
+    | "shell-app"
+    | "on-device";
   title: string;
   content: string;
   pinned?: boolean;
@@ -173,6 +191,24 @@ export interface ContainerTab {
   filePath?: string;
   outputId?: string;
   contextItemId?: string;
+}
+
+export interface PreviewSession {
+  id: string;
+  deviceLabel: string;
+  os: "ios" | "android" | "web";
+  status: "live" | "paired" | "disconnected";
+  /** ISO timestamp of the most recent ping/event from this device. */
+  lastPing: string;
+}
+
+export interface PreviewEvent {
+  id: string;
+  timestamp: string;
+  message: string;
+  /** Round-trip in ms when applicable, e.g. for live-reload pushes. */
+  durationMs?: number;
+  sessionId?: string;
 }
 
 export interface ContextItem {

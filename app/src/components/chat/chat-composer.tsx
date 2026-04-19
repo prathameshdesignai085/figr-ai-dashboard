@@ -3,6 +3,8 @@
 import type { RefObject } from "react";
 import { CornerDownLeft, ImageIcon, Mic, Orbit, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { TargetPlatform } from "@/types";
+import { platformBadgeColors, PlatformIcon, platformLabel } from "@/lib/platform";
 
 export type ComposerContextChip = {
   id: string;
@@ -27,6 +29,8 @@ export function ChatComposer({
   onSubmit,
   canSubmit,
   className,
+  platform,
+  onPlatformClick,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -38,6 +42,9 @@ export function ChatComposer({
   onSubmit: () => void;
   canSubmit: boolean;
   className?: string;
+  /** When set, renders a small platform chip in the toolbar mirroring the active space. */
+  platform?: TargetPlatform;
+  onPlatformClick?: () => void;
 }) {
   return (
     <div className={cn("flex flex-col", className)}>
@@ -114,13 +121,29 @@ export function ChatComposer({
         />
 
         <div className="mt-1.5 flex h-[27px] shrink-0 items-center justify-between gap-2">
-          <button
-            type="button"
-            className="flex h-[27px] items-center gap-1.5 rounded-[8px] bg-[#0f0f0f] px-2.5 text-xs font-medium text-[#f5f5f5] transition-colors hover:bg-[#2a2a2a]"
-          >
-            <Plus size={13} strokeWidth={2} className="shrink-0 text-[#f5f5f5]" />
-            <span>Add contexts</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              className="flex h-[27px] items-center gap-1.5 rounded-[8px] bg-[#0f0f0f] px-2.5 text-xs font-medium text-[#f5f5f5] transition-colors hover:bg-[#2a2a2a]"
+            >
+              <Plus size={13} strokeWidth={2} className="shrink-0 text-[#f5f5f5]" />
+              <span>Add contexts</span>
+            </button>
+            {platform && (
+              <button
+                type="button"
+                onClick={onPlatformClick}
+                title={`Generating for ${platformLabel(platform)} — click badge in top bar to switch`}
+                className={cn(
+                  "flex h-[27px] items-center gap-1 rounded-[8px] px-2 text-[11px] font-medium capitalize transition-opacity hover:opacity-80",
+                  platformBadgeColors[platform]
+                )}
+              >
+                <PlatformIcon platform={platform} size={11} />
+                {platformLabel(platform)}
+              </button>
+            )}
+          </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
             <button

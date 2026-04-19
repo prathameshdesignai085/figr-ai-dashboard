@@ -9,6 +9,7 @@ import {
   Component,
   Check,
   Bookmark,
+  Smartphone,
 } from "lucide-react";
 import type { Output } from "@/types";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
@@ -63,6 +64,12 @@ export function OutputCard({
           <span className="text-[10px] uppercase tracking-wider text-foreground/30 font-medium">
             {outputTypeLabels[output.type]}
           </span>
+          {output.platform === "mobile" && (
+            <span className="flex h-4 items-center gap-0.5 rounded-full bg-violet-400/10 px-1.5 text-[9px] font-medium text-violet-400">
+              <Smartphone size={9} />
+              Mobile
+            </span>
+          )}
         </div>
         <button
           onClick={(e) => {

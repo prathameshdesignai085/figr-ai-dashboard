@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useBuildStore } from "@/stores/useBuildStore";
+import { useSpaceStore } from "@/stores/useSpaceStore";
 import type { InspectedElement } from "@/types";
 import { PreviewUrlBar } from "./preview-url-bar";
 import { BuildFileTree } from "./build-file-tree";
@@ -18,6 +19,7 @@ type Device = "desktop" | "tablet" | "mobile";
 
 export function BuildPreviewPanel({ buildProjectId }: { buildProjectId: string }) {
   const project = useBuildStore((s) => s.getProject(buildProjectId));
+  const activeSpace = useSpaceStore((s) => s.getActiveSpace());
   const activeRoutePath =
     useBuildStore((s) => s.activeRouteByProject[buildProjectId]) ??
     project?.routes[0]?.path ??
@@ -31,7 +33,10 @@ export function BuildPreviewPanel({ buildProjectId }: { buildProjectId: string }
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const baselineRef = useRef<InspectedElement | null>(null);
-  const [device, setDevice] = useState<Device>("desktop");
+  const isMobileSpace =
+    project?.targetPlatform === "mobile" ||
+    activeSpace?.targetPlatform === "mobile";
+  const [device, setDevice] = useState<Device>(isMobileSpace ? "mobile" : "desktop");
   const [refreshKey, setRefreshKey] = useState(0);
   const [inspectId, setInspectId] = useState<string | null>(null);
   const [draft, setDraft] = useState<InspectedElement | null>(null);

@@ -11,6 +11,7 @@ import { BuildPreviewPanel } from "./build-preview/build-preview-panel";
 import { OutputHtmlPreview } from "./output-html-preview";
 import { DesignEditorPanel } from "./design-editor/design-editor-panel";
 import { ShellAppPreviewPanel } from "./shell-app-preview-panel";
+import { OnDevicePanel } from "./on-device-panel";
 import { motion, AnimatePresence } from "framer-motion";
 
 function isLikelyHtml(content: string): boolean {
@@ -48,6 +49,9 @@ export function ContainerArea({ workspace }: { workspace: Space | Shell }) {
           <p className="text-sm text-foreground/30">App preview is only for shells</p>
         </div>
       );
+    }
+    if (activeTab.type === "on-device") {
+      return <OnDevicePanel />;
     }
     if (activeTab.type === "preview" && activeTab.buildProjectId) {
       return <BuildPreviewPanel buildProjectId={activeTab.buildProjectId} />;

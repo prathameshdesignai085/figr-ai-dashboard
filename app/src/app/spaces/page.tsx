@@ -22,7 +22,8 @@ import {
 import { useSpaceStore } from "@/stores/useSpaceStore";
 import { useChatStore } from "@/stores/useChatStore";
 import { useKnowledgeStore } from "@/stores/useKnowledgeStore";
-import type { KnowledgeCategory, KnowledgeItem } from "@/types";
+import type { KnowledgeCategory, KnowledgeItem, TargetPlatform } from "@/types";
+import { platformOptions, platformBadgeColors, PlatformIcon } from "@/lib/platform";
 import {
   Dialog,
   DialogContent,
@@ -69,6 +70,7 @@ export default function SpacesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [newPlatform, setNewPlatform] = useState<TargetPlatform>("web");
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [expandedCategories, setExpandedCategories] = useState<Set<KnowledgeCategory>>(new Set());
   const [instructions, setInstructions] = useState("");
@@ -107,10 +109,11 @@ export default function SpacesPage() {
 
   const handleCreate = () => {
     if (!newName.trim()) return;
-    const space = createSpace(newName.trim(), newDescription.trim());
+    const space = createSpace(newName.trim(), newDescription.trim(), newPlatform);
     // In a real app we'd also save selectedKnowledge and instructions to the space
     setNewName("");
     setNewDescription("");
+    setNewPlatform("web");
     setSelectedDocIds(new Set());
     setExpandedCategories(new Set());
     setInstructions("");
@@ -121,6 +124,7 @@ export default function SpacesPage() {
   const resetAndOpenDialog = () => {
     setNewName("");
     setNewDescription("");
+    setNewPlatform("web");
     setSelectedDocIds(new Set());
     setExpandedCategories(new Set());
     setInstructions("");
@@ -247,7 +251,7 @@ export default function SpacesPage() {
                       {space.description}
                     </p>
                   )}
-                  <div className="flex items-center gap-3 mt-auto">
+                  <div className="flex items-center gap-2 mt-auto">
                     <span
                       className={cn(
                         "text-[11px] font-medium px-2 py-0.5 rounded-full capitalize",
@@ -256,7 +260,15 @@ export default function SpacesPage() {
                     >
                       {space.stage}
                     </span>
-                    <span className="text-xs text-foreground/30">
+                    <span
+                      className={cn(
+                        "text-[11px] font-medium px-2 py-0.5 rounded-full capitalize",
+                        platformBadgeColors[space.targetPlatform]
+                      )}
+                    >
+                      {space.targetPlatform}
+                    </span>
+                    <span className="text-xs text-foreground/30 ml-auto">
                       {formatDistanceToNow(new Date(space.updatedAt), {
                         addSuffix: true,
                       })}
@@ -286,6 +298,14 @@ export default function SpacesPage() {
                     )}
                   >
                     {space.stage}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[11px] font-medium px-2 py-0.5 rounded-full capitalize shrink-0",
+                      platformBadgeColors[space.targetPlatform]
+                    )}
+                  >
+                    {space.targetPlatform}
                   </span>
                   <span className="text-xs text-foreground/30 shrink-0 w-24 text-right">
                     {formatDistanceToNow(new Date(space.updatedAt), {
@@ -358,6 +378,53 @@ export default function SpacesPage() {
                   placeholder="What is this space about?"
                   className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-sm text-foreground placeholder:text-foreground/25 focus:outline-none focus:border-white/[0.2]"
                 />
+              </div>
+            </div>
+
+            {/* Target Platform — drives prompts, default device chrome, On Device tab */}
+            <div className="mb-6">
+              <label className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-2.5 block">
+                Target Platform
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {platformOptions.map((opt) => {
+                  const selected = newPlatform === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setNewPlatform(opt.id)}
+                      className={cn(
+                        "flex flex-col items-start gap-1.5 rounded-lg border p-3 text-left transition-all",
+                        selected
+                          ? "border-white/[0.25] bg-white/[0.04]"
+                          : "border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.02]"
+                      )}
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <span
+                          className={cn(
+                            "flex h-6 w-6 items-center justify-center rounded-md",
+                            platformBadgeColors[opt.id]
+                          )}
+                        >
+                          <PlatformIcon platform={opt.id} size={13} />
+                        </span>
+                        {selected && (
+                          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/[0.7]">
+                            <Check size={10} className="text-black" />
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm font-medium text-foreground/80">
+                        {opt.label}
+                      </span>
+                      <span className="text-[11px] leading-snug text-foreground/40">
+                        {opt.description}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

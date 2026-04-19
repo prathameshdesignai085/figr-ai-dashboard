@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
-import type { Space } from "@/types";
+import type { Space, TargetPlatform } from "@/types";
 
 interface SpaceState {
   spaces: Space[];
@@ -8,9 +8,14 @@ interface SpaceState {
   getActiveSpace: () => Space | undefined;
   setActiveSpace: (id: string | null) => void;
   addSpace: (space: Space) => void;
-  createSpace: (name: string, description: string) => Space;
+  createSpace: (
+    name: string,
+    description: string,
+    targetPlatform?: TargetPlatform
+  ) => Space;
   toggleFavorite: (id: string) => void;
   updateSpace: (id: string, updates: Partial<Space>) => void;
+  setTargetPlatform: (id: string, platform: TargetPlatform) => void;
 }
 
 export const useSpaceStore = create<SpaceState>((set, get) => ({
@@ -20,6 +25,7 @@ export const useSpaceStore = create<SpaceState>((set, get) => ({
       name: "Checkout Redesign",
       description: "Redesigning the checkout flow for better conversion",
       stage: "wireframe",
+      targetPlatform: "web",
       isFavorite: true,
       createdAt: "2026-03-28T10:00:00Z",
       updatedAt: "2026-04-02T14:30:00Z",
@@ -80,6 +86,7 @@ export const useSpaceStore = create<SpaceState>((set, get) => ({
       name: "Onboarding V2",
       description: "New user onboarding experience",
       stage: "brainstorm",
+      targetPlatform: "web",
       isFavorite: true,
       createdAt: "2026-04-01T08:00:00Z",
       updatedAt: "2026-04-03T11:00:00Z",
@@ -93,6 +100,7 @@ export const useSpaceStore = create<SpaceState>((set, get) => ({
       name: "Mobile App MVP",
       description: "First version of the mobile application",
       stage: "brainstorm",
+      targetPlatform: "mobile",
       isFavorite: false,
       createdAt: "2026-04-02T10:00:00Z",
       updatedAt: "2026-04-02T16:00:00Z",
@@ -114,13 +122,14 @@ export const useSpaceStore = create<SpaceState>((set, get) => ({
   addSpace: (space) =>
     set((state) => ({ spaces: [...state.spaces, space] })),
 
-  createSpace: (name, description) => {
+  createSpace: (name, description, targetPlatform = "web") => {
     const now = new Date().toISOString();
     const space: Space = {
       id: `space-${nanoid(6)}`,
       name,
       description,
       stage: "brainstorm",
+      targetPlatform,
       isFavorite: false,
       createdAt: now,
       updatedAt: now,
@@ -144,6 +153,15 @@ export const useSpaceStore = create<SpaceState>((set, get) => ({
     set((state) => ({
       spaces: state.spaces.map((s) =>
         s.id === id ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s
+      ),
+    })),
+
+  setTargetPlatform: (id, platform) =>
+    set((state) => ({
+      spaces: state.spaces.map((s) =>
+        s.id === id
+          ? { ...s, targetPlatform: platform, updatedAt: new Date().toISOString() }
+          : s
       ),
     })),
 }));

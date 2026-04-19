@@ -4,14 +4,21 @@ import { useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { appendInspectBridge, FIGRED_MSG } from "./inspect-bridge";
 import type { InspectedElement } from "@/types";
+import {
+  DeviceFrame,
+  isPhoneFrame,
+  type DeviceFrameVariant,
+} from "../device-frame";
 
-type Device = "desktop" | "tablet" | "mobile";
+// Backwards-compatible alias for existing callers that still pass the old union.
+type LegacyDevice = "desktop" | "tablet" | "mobile";
+export type Device = LegacyDevice | DeviceFrameVariant;
 
-const deviceWidths: Record<Device, string> = {
-  desktop: "100%",
-  tablet: "768px",
-  mobile: "375px",
-};
+function resolveVariant(device: Device): DeviceFrameVariant {
+  if (device === "mobile") return "iphone-15-pro";
+  if (device === "desktop" || device === "tablet") return device;
+  return device;
+}
 
 export function LivePreviewFrame({
   html,
@@ -30,6 +37,8 @@ export function LivePreviewFrame({
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
 }) {
   const srcDoc = appendInspectBridge(html);
+  const variant = resolveVariant(device);
+  const isPhone = isPhoneFrame(variant);
 
   const postInspectMode = useCallback(() => {
     const win = iframeRef.current?.contentWindow;
@@ -61,28 +70,38 @@ export function LivePreviewFrame({
     return () => window.removeEventListener("message", onMessage);
   }, [iframeRef, onInspectSelect]);
 
+  const iframe = (
+    <iframe
+      key={iframeKey}
+      ref={iframeRef}
+      title="Preview"
+      className={cn("block h-full w-full bg-white", !isPhone && "min-h-[400px]")}
+      sandbox="allow-scripts allow-same-origin"
+      srcDoc={srcDoc}
+      onLoad={postInspectMode}
+    />
+  );
+
   return (
     <div className="flex flex-1 items-start justify-center overflow-auto bg-white/[0.01] p-4 min-h-0">
-      <div
-        className={cn(
-          "rounded-lg border border-white/[0.06] bg-white shadow-sm min-h-[400px] transition-[width] duration-200",
-          device !== "desktop" && "mx-auto"
-        )}
-        style={{
-          width: deviceWidths[device],
-          maxWidth: "100%",
-        }}
-      >
-        <iframe
-          key={iframeKey}
-          ref={iframeRef}
-          title="Preview"
-          className="block h-full min-h-[400px] w-full rounded-lg bg-white"
-          sandbox="allow-scripts allow-same-origin"
-          srcDoc={srcDoc}
-          onLoad={postInspectMode}
-        />
-      </div>
+      {isPhone ? (
+        <DeviceFrame variant={variant} showStatusBar={false}>
+          {iframe}
+        </DeviceFrame>
+      ) : (
+        <div
+          className={cn(
+            "rounded-lg border border-white/[0.06] bg-white shadow-sm min-h-[400px] transition-[width] duration-200",
+            variant !== "desktop" && "mx-auto"
+          )}
+          style={{
+            width: variant === "desktop" ? "100%" : "768px",
+            maxWidth: "100%",
+          }}
+        >
+          {iframe}
+        </div>
+      )}
     </div>
   );
 }

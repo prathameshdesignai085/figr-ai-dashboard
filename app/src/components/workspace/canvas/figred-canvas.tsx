@@ -180,6 +180,7 @@ export function FigredCanvas({
           kept: true,
           keptAt: new Date().toISOString(),
           canvasPosition: { x: sourceX + i * 512, y: sourceY },
+          platform: sourceOutput.platform,
         };
         addOutputToCanvasAndChat(variant);
       }
@@ -222,6 +223,7 @@ export function FigredCanvas({
           x: (sourceOutput.canvasPosition?.x ?? 200) + 520,
           y: sourceOutput.canvasPosition?.y ?? 200,
         },
+        platform: sourceOutput.platform,
       };
 
       if (activeChatId) {
