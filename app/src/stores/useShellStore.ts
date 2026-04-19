@@ -134,6 +134,7 @@ export const useShellStore = create<ShellState>((set, get) => ({
       name: `${shell.name} (remix)`,
       description: shell.description,
       stage: "brainstorm",
+      targetPlatform: "web",
       isFavorite: false,
       createdAt: now,
       updatedAt: now,
