@@ -24,6 +24,7 @@ import { useChatStore } from "@/stores/useChatStore";
 import { useKnowledgeStore } from "@/stores/useKnowledgeStore";
 import type { KnowledgeCategory, KnowledgeItem, TargetPlatform } from "@/types";
 import { platformOptions, platformBadgeColors, PlatformIcon } from "@/lib/platform";
+import { seedMobileSpaceDemo } from "@/lib/seed/seed-mobile-space";
 import {
   Dialog,
   DialogContent,
@@ -110,6 +111,11 @@ export default function SpacesPage() {
   const handleCreate = () => {
     if (!newName.trim()) return;
     const space = createSpace(newName.trim(), newDescription.trim(), newPlatform);
+    // Mobile spaces get a demo chat + Built mobile output so the workspace
+    // lands on a working preview instead of "No chats yet".
+    if (newPlatform === "mobile") {
+      seedMobileSpaceDemo(space.id);
+    }
     // In a real app we'd also save selectedKnowledge and instructions to the space
     setNewName("");
     setNewDescription("");

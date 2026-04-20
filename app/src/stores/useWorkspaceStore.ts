@@ -39,6 +39,12 @@ interface WorkspaceState {
   sidebarOpen: boolean;
   sidebarMode: SidebarMode;
   chatHistoryOpen: boolean;
+  /**
+   * On-device tab "View on phone" overlay (QR + connected devices + event log).
+   * Default-opens when the on-device tab is opened so first-time users see the
+   * pairing surface; user can dismiss; the trigger button re-opens.
+   */
+  mobileShareOverlayOpen: boolean;
 
   // Container tabs
   tabs: ContainerTab[];
@@ -73,6 +79,9 @@ interface WorkspaceState {
   /** Open or focus the "On Device" tab for the active space (QR + sessions + Snack runner). */
   openOnDeviceTab: () => void;
   toggleOnDeviceTab: () => void;
+  /** Open/close the View-on-phone overlay (QR + devices + event log). */
+  setMobileShareOverlayOpen: (open: boolean) => void;
+  toggleMobileShareOverlay: () => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -80,6 +89,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   sidebarOpen: true,
   sidebarMode: "context",
   chatHistoryOpen: false,
+  mobileShareOverlayOpen: true,
 
   tabs: [],
   activeTabId: null,
@@ -279,7 +289,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const state = get();
     const existing = state.tabs.find((t) => t.type === "on-device");
     if (existing) {
-      set({ activeTabId: existing.id, containerOpen: true });
+      set({
+        activeTabId: existing.id,
+        containerOpen: true,
+        mobileShareOverlayOpen: true,
+      });
       return;
     }
     const tab: ContainerTab = {
@@ -294,6 +308,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       tabs: sortTabsPinnedOrder([...state.tabs, tab]),
       activeTabId: tab.id,
       containerOpen: true,
+      mobileShareOverlayOpen: true,
     });
   },
 
@@ -305,6 +320,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }
     get().openOnDeviceTab();
   },
+
+  setMobileShareOverlayOpen: (open) => set({ mobileShareOverlayOpen: open }),
+
+  toggleMobileShareOverlay: () =>
+    set((state) => ({ mobileShareOverlayOpen: !state.mobileShareOverlayOpen })),
 
   removeTabsForBuildProject: (buildProjectId) => {
     const state = get();

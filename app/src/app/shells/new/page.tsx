@@ -8,7 +8,6 @@ import { useChatStore } from "@/stores/useChatStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { SHELL_ONBOARDING_SESSION_KEY } from "@/lib/shell-onboarding";
 
 const STEP_LABELS = [
   "Tech stack",
@@ -90,11 +89,6 @@ export default function NewShellPage() {
       appRouterNote: appRouterNote.trim() || undefined,
     });
     const chat = createShellChat(shell.id, "Main");
-    try {
-      sessionStorage.setItem(SHELL_ONBOARDING_SESSION_KEY, shell.id);
-    } catch {
-      /* ignore */
-    }
     router.replace(`/shells/${shell.id}/chat/${chat.id}`);
   };
 

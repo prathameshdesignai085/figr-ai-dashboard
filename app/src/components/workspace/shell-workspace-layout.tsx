@@ -6,7 +6,6 @@ import {
   SHELL_APP_PREVIEW_TAB_ID,
   useWorkspaceStore,
 } from "@/stores/useWorkspaceStore";
-import { SHELL_ONBOARDING_SESSION_KEY } from "@/lib/shell-onboarding";
 import { useChatStore } from "@/stores/useChatStore";
 import { ShellWorkspaceTopBar } from "./shell-workspace-top-bar";
 import { ChatPanel } from "./chat-panel";
@@ -34,19 +33,7 @@ export function ShellWorkspaceLayout({
   }, [chatId, setActiveChat]);
 
   useEffect(() => {
-    let focusAppPreview = false;
-    try {
-      const v = sessionStorage.getItem(SHELL_ONBOARDING_SESSION_KEY);
-      if (v === shell.id) {
-        focusAppPreview = true;
-        sessionStorage.removeItem(SHELL_ONBOARDING_SESSION_KEY);
-      }
-    } catch {
-      /* ignore */
-    }
-    replaceShellWorkspacePinnedTabs(
-      focusAppPreview ? SHELL_APP_PREVIEW_TAB_ID : undefined
-    );
+    replaceShellWorkspacePinnedTabs(SHELL_APP_PREVIEW_TAB_ID);
   }, [shell.id, replaceShellWorkspacePinnedTabs]);
 
   const handleMouseDown = useCallback(

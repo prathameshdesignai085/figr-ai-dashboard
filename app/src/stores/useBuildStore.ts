@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { BuildProject, InspectedElement } from "@/types";
+import { mobileMvpDemoBuildProject } from "@/lib/seed/mobile-mvp-demo-build";
 
 interface BuildState {
   projects: BuildProject[];
@@ -28,7 +29,9 @@ interface BuildState {
 }
 
 export const useBuildStore = create<BuildState>((set, get) => ({
-  projects: [],
+  // Seed the static "Mobile App MVP" demo build so its Built output
+  // (out-mvp-built) can resolve via buildProjectId on first load.
+  projects: [mobileMvpDemoBuildProject],
   activeProjectId: null,
   activeRouteByProject: {},
   inspectModeByProject: {},

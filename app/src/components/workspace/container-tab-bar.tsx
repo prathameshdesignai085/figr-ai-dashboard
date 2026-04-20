@@ -1,15 +1,20 @@
 "use client";
 
 import { X, Layout, MonitorPlay, FolderTree, Pencil, AppWindow, Smartphone } from "lucide-react";
+import type { Space } from "@/types";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { useBuildStore } from "@/stores/useBuildStore";
 import { cn } from "@/lib/utils";
 
-export function ContainerTabBar() {
-  const { tabs, activeTabId, setActiveTab, closeTab } = useWorkspaceStore();
+export function ContainerTabBar({ space }: { space?: Space }) {
+  const { tabs, activeTabId, setActiveTab, closeTab, toggleOnDeviceTab, containerOpen } =
+    useWorkspaceStore();
   const toggleFileTree = useBuildStore((s) => s.toggleFileTree);
   const fileTreeOpen = useBuildStore((s) => s.fileTreeOpen);
   const hasPreview = tabs.some((t) => t.type === "preview");
+  const isMobileSpace =
+    space?.targetPlatform === "mobile" || space?.targetPlatform === "universal";
+  const onDeviceActive = containerOpen && activeTabId === "on-device";
 
   return (
     <div className="flex h-9 items-center gap-0.5 border-b border-white/[0.06] bg-background px-1 overflow-x-auto">
@@ -61,12 +66,31 @@ export function ContainerTabBar() {
         ))}
       </div>
 
+      {isMobileSpace && (
+        <button
+          type="button"
+          onClick={() => toggleOnDeviceTab()}
+          className={cn(
+            "ml-auto flex h-7 items-center gap-1.5 shrink-0 rounded-md px-2 text-xs transition-colors",
+            onDeviceActive
+              ? "bg-white/[0.06] text-foreground/80"
+              : "text-foreground/40 hover:text-foreground/60 hover:bg-white/[0.03]"
+          )}
+          title="Mobile preview"
+        >
+          <Smartphone size={13} className="text-violet-400" />
+          Mobile
+        </button>
+      )}
+
       {hasPreview && (
         <button
           type="button"
           onClick={() => toggleFileTree()}
           className={cn(
-            "ml-auto mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
+            isMobileSpace ? "" : "ml-auto",
+            "mr-1",
             fileTreeOpen
               ? "bg-white/[0.06] text-foreground/70"
               : "text-foreground/25 hover:text-foreground/40"

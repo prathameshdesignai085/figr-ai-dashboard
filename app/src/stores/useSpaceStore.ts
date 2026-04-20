@@ -99,15 +99,18 @@ export const useSpaceStore = create<SpaceState>((set, get) => ({
       id: "space-3",
       name: "Mobile App MVP",
       description: "First version of the mobile application",
-      stage: "brainstorm",
+      // Stage advanced to "build" because this space already has a working
+      // RN prototype on the canvas (out-mvp-built → build-mobile-mvp-demo).
+      stage: "build",
       targetPlatform: "mobile",
       isFavorite: false,
       createdAt: "2026-04-02T10:00:00Z",
-      updatedAt: "2026-04-02T16:00:00Z",
-      chatIds: [],
+      updatedAt: "2026-04-18T10:20:00Z",
+      chatIds: ["chat-mvp-1"],
       contextItems: [],
       connectedKnowledge: [],
-      instructions: "",
+      instructions:
+        "Mobile-first activity tracker. Optimize for one-handed use; prioritize today's progress over historical depth.",
     },
   ],
   activeSpaceId: null,

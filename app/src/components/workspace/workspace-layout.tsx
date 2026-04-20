@@ -21,7 +21,8 @@ export function WorkspaceLayout({
   const removeShellAppPreviewTabFromWorkspace = useWorkspaceStore(
     (s) => s.removeShellAppPreviewTabFromWorkspace
   );
-  const { setActiveChat } = useChatStore();
+  const openOnDeviceTab = useWorkspaceStore((s) => s.openOnDeviceTab);
+  const { setActiveChat, chats } = useChatStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(380);
   const [isResizing, setIsResizing] = useState(false);
@@ -34,6 +35,33 @@ export function WorkspaceLayout({
   useEffect(() => {
     removeShellAppPreviewTabFromWorkspace();
   }, [space.id, removeShellAppPreviewTabFromWorkspace]);
+
+  // Mobile (or universal) spaces with at least one Built mobile output land
+  // straight on the On Device tab + share overlay the first time the user
+  // visits them in a session. After that the user's last interaction sticks.
+  useEffect(() => {
+    const isMobileLike =
+      space.targetPlatform === "mobile" || space.targetPlatform === "universal";
+    if (!isMobileLike) return;
+    if (typeof window === "undefined") return;
+
+    const sessionKey = `figred:mobile-autopreview:${space.id}`;
+    if (window.sessionStorage.getItem(sessionKey)) return;
+
+    const hasBuiltMobileOutput = chats.some(
+      (c) =>
+        c.spaceId === space.id &&
+        c.messages.some((m) =>
+          m.outputs.some(
+            (o) => o.fidelity === "built" && o.platform === "mobile"
+          )
+        )
+    );
+    if (!hasBuiltMobileOutput) return;
+
+    window.sessionStorage.setItem(sessionKey, "1");
+    openOnDeviceTab();
+  }, [space.id, space.targetPlatform, chats, openOnDeviceTab]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {

@@ -1,12 +1,31 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Smartphone, Wifi, Activity, RefreshCw, ExternalLink, Copy, Check } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Smartphone,
+  Wifi,
+  Activity,
+  RefreshCw,
+  ExternalLink,
+  Copy,
+  Check,
+  Share2,
+  X,
+} from "lucide-react";
 import { useSpaceStore } from "@/stores/useSpaceStore";
+import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { cn } from "@/lib/utils";
 
 /**
  * "On Device" tab — Expo Go-style preview pairing surface.
+ *
+ * Layout:
+ *  - Inline (always shown): top bar (title + Share button) + Snack runner placeholder
+ *  - Floating overlay (toggled by Share / View on phone button): QR + connected devices + event log
+ *
+ * The overlay defaults to open every time the on-device tab opens (set by
+ * `openOnDeviceTab` in the workspace store), and is dismissable via the X /
+ * backdrop / Esc key. The "Share" button re-opens it.
  *
  * Phase 1 (this iteration): mocked Snack runner placeholder, mocked QR,
  * mocked connected-devices strip, mocked event log. Phase 2 wires real
@@ -15,18 +34,102 @@ import { cn } from "@/lib/utils";
 export function OnDevicePanel() {
   const space = useSpaceStore((s) => s.getActiveSpace());
   const isMobile = space?.targetPlatform === "mobile";
-  const isUniversal = space?.targetPlatform === "universal";
+  const overlayOpen = useWorkspaceStore((s) => s.mobileShareOverlayOpen);
+  const toggleOverlay = useWorkspaceStore((s) => s.toggleMobileShareOverlay);
+  const setOverlayOpen = useWorkspaceStore((s) => s.setMobileShareOverlayOpen);
+
+  return (
+    <div className="relative flex h-full min-h-0 flex-col bg-background">
+      {/* Top bar */}
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
+        <div className="flex items-center gap-2 text-xs text-foreground/60">
+          <Smartphone size={13} className="text-violet-400" />
+          <span className="font-medium text-foreground/80">Mobile preview</span>
+          <span className="text-foreground/30">·</span>
+          <span className="capitalize text-foreground/40">
+            {isMobile ? "Expo Go runtime" : "Embedded preview"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1 text-[10px] text-foreground/40">
+            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+            Live · last sync 2s ago
+          </span>
+          <button
+            type="button"
+            onClick={() => toggleOverlay()}
+            className={cn(
+              "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs transition-colors",
+              overlayOpen
+                ? "bg-violet-400/10 text-violet-300"
+                : "text-foreground/40 hover:bg-white/[0.04] hover:text-foreground/70"
+            )}
+            title={overlayOpen ? "Hide pairing panel" : "View on phone"}
+          >
+            <Share2 size={13} />
+            {overlayOpen ? "Hide" : "View on phone"}
+          </button>
+        </div>
+      </div>
+
+      {/* Body — Snack runner takes the full panel */}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-[11px] text-foreground/40">
+          <span>{isMobile ? "Embedded Snack runner" : "Embedded preview"}</span>
+          <button
+            type="button"
+            className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-foreground/40 hover:bg-white/[0.04] hover:text-foreground/70"
+          >
+            <RefreshCw size={11} />
+            Reload
+          </button>
+        </div>
+        <div className="flex flex-1 items-center justify-center overflow-auto bg-[#0a0a0a] p-4">
+          <SnackRunnerPlaceholder mobile={isMobile} />
+        </div>
+      </div>
+
+      {/* Floating overlay — QR + connected devices + event log */}
+      {overlayOpen && (
+        <ShareOverlay
+          isMobile={isMobile}
+          spaceId={space?.id ?? "demo"}
+          onClose={() => setOverlayOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ShareOverlay({
+  isMobile,
+  spaceId,
+  onClose,
+}: {
+  isMobile: boolean;
+  spaceId: string;
+  onClose: () => void;
+}) {
   const [copied, setCopied] = useState(false);
 
   const pairingUrl = useMemo(() => {
     const base = isMobile
       ? "exp://figred.dev/preview/"
       : "https://figred.dev/preview/";
-    return base + (space?.id ?? "demo");
-  }, [isMobile, space?.id]);
+    return base + spaceId;
+  }, [isMobile, spaceId]);
 
   const sessions = mockSessions(isMobile);
   const events = mockEvents();
+
+  // Esc-to-close
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const handleCopy = async () => {
     try {
@@ -39,144 +142,128 @@ export function OnDevicePanel() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
-      {/* Top bar */}
-      <div className="flex h-10 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
-        <div className="flex items-center gap-2 text-xs text-foreground/60">
-          <Smartphone size={13} className="text-violet-400" />
-          <span className="font-medium text-foreground/80">On Device</span>
-          <span className="text-foreground/30">·</span>
-          <span className="capitalize text-foreground/40">
-            {isMobile ? "Expo Go pairing" : isUniversal ? "Universal preview" : "Web preview"}
-          </span>
+    <>
+      {/* Backdrop — click to dismiss */}
+      <div
+        className="absolute inset-0 z-10 bg-black/30"
+        onClick={onClose}
+        aria-hidden
+      />
+      {/* Floating card anchored top-right under the trigger */}
+      <div
+        className="absolute right-3 top-12 z-20 flex w-[340px] flex-col rounded-lg border border-white/[0.08] bg-[#161616] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-foreground/40">
+            <Share2 size={11} />
+            {isMobile ? "Pair via Expo Go" : "Open on your phone"}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-5 w-5 items-center justify-center rounded text-foreground/30 hover:bg-white/[0.06] hover:text-foreground/70"
+            aria-label="Close"
+          >
+            <X size={11} />
+          </button>
         </div>
-        <div className="flex items-center gap-1 text-[10px] text-foreground/40">
-          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-          Live · last sync 2s ago
-        </div>
-      </div>
 
-      {/* Body — two columns: runner | side rail */}
-      <div className="flex min-h-0 flex-1">
-        {/* Left: embedded Snack runner placeholder */}
-        <div className="flex min-w-0 flex-1 flex-col border-r border-white/[0.06]">
-          <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-[11px] text-foreground/40">
-            <span>{isMobile ? "Embedded Snack runner" : "Embedded preview"}</span>
+        {/* QR card */}
+        <div className="border-b border-white/[0.06] p-4">
+          <div className="flex justify-center">
+            <FauxQrCode />
+          </div>
+          <div className="mt-3 flex items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1.5">
+            <span className="flex-1 truncate font-mono text-[10px] text-foreground/50">
+              {pairingUrl}
+            </span>
             <button
               type="button"
-              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-foreground/40 hover:bg-white/[0.04] hover:text-foreground/70"
+              onClick={handleCopy}
+              className="flex h-5 w-5 items-center justify-center rounded text-foreground/40 hover:bg-white/[0.06] hover:text-foreground/70"
+              aria-label="Copy pairing URL"
             >
-              <RefreshCw size={11} />
-              Reload
+              {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+            </button>
+            <button
+              type="button"
+              className="flex h-5 w-5 items-center justify-center rounded text-foreground/40 hover:bg-white/[0.06] hover:text-foreground/70"
+              aria-label="Open externally"
+            >
+              <ExternalLink size={11} />
             </button>
           </div>
-          <div className="flex flex-1 items-center justify-center overflow-auto bg-[#0a0a0a] p-4">
-            <SnackRunnerPlaceholder mobile={isMobile} />
+          {isMobile && (
+            <p className="mt-2 text-[10px] leading-snug text-foreground/40">
+              Open Expo Go on your phone and scan. Live-reloads on every keep.
+            </p>
+          )}
+        </div>
+
+        {/* Connected devices */}
+        <div className="border-b border-white/[0.06] p-3">
+          <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-foreground/40">
+            <Wifi size={11} />
+            Connected devices
+          </div>
+          <div className="flex flex-col gap-1">
+            {sessions.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center gap-2 rounded-md border border-white/[0.04] bg-white/[0.02] px-2 py-1.5"
+              >
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 shrink-0 rounded-full",
+                    s.status === "live"
+                      ? "bg-emerald-400"
+                      : s.status === "paired"
+                      ? "bg-amber-400"
+                      : "bg-foreground/30"
+                  )}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs text-foreground/70">
+                    {s.deviceLabel}
+                  </div>
+                  <div className="text-[10px] text-foreground/40">
+                    {s.os.toUpperCase()} · {s.lastPing}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {sessions.length === 0 && (
+              <div className="rounded-md border border-dashed border-white/[0.06] px-2 py-3 text-center text-[10px] text-foreground/30">
+                No devices paired yet
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right: QR + sessions + event log */}
-        <div className="flex w-[320px] shrink-0 flex-col">
-          {/* QR card */}
-          <div className="border-b border-white/[0.06] p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-[11px] uppercase tracking-wider text-foreground/40">
-                {isMobile ? "Scan with Expo Go" : "Open on your phone"}
-              </span>
-            </div>
-            <div className="flex justify-center">
-              <FauxQrCode />
-            </div>
-            <div className="mt-3 flex items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1.5">
-              <span className="flex-1 truncate font-mono text-[10px] text-foreground/50">
-                {pairingUrl}
-              </span>
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="flex h-5 w-5 items-center justify-center rounded text-foreground/40 hover:bg-white/[0.06] hover:text-foreground/70"
-                aria-label="Copy pairing URL"
-              >
-                {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-              </button>
-              <button
-                type="button"
-                className="flex h-5 w-5 items-center justify-center rounded text-foreground/40 hover:bg-white/[0.06] hover:text-foreground/70"
-                aria-label="Open externally"
-              >
-                <ExternalLink size={11} />
-              </button>
-            </div>
-            {isMobile && (
-              <p className="mt-2 text-[10px] leading-snug text-foreground/40">
-                Open Expo Go on your phone and scan. Live-reloads on every keep.
-              </p>
-            )}
+        {/* Event log */}
+        <div className="flex max-h-44 min-h-0 flex-col p-3">
+          <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-foreground/40">
+            <Activity size={11} />
+            Event log
           </div>
-
-          {/* Connected devices */}
-          <div className="border-b border-white/[0.06] p-3">
-            <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-foreground/40">
-              <Wifi size={11} />
-              Connected devices
-            </div>
-            <div className="flex flex-col gap-1">
-              {sessions.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center gap-2 rounded-md border border-white/[0.04] bg-white/[0.02] px-2 py-1.5"
-                >
-                  <span
-                    className={cn(
-                      "h-1.5 w-1.5 shrink-0 rounded-full",
-                      s.status === "live"
-                        ? "bg-emerald-400"
-                        : s.status === "paired"
-                        ? "bg-amber-400"
-                        : "bg-foreground/30"
-                    )}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs text-foreground/70">
-                      {s.deviceLabel}
-                    </div>
-                    <div className="text-[10px] text-foreground/40">
-                      {s.os.toUpperCase()} · {s.lastPing}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {sessions.length === 0 && (
-                <div className="rounded-md border border-dashed border-white/[0.06] px-2 py-3 text-center text-[10px] text-foreground/30">
-                  No devices paired yet
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Event log */}
-          <div className="flex min-h-0 flex-1 flex-col p-3">
-            <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-foreground/40">
-              <Activity size={11} />
-              Event log
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto font-mono text-[10px] leading-relaxed text-foreground/50">
-              {events.map((e) => (
-                <div key={e.id} className="flex gap-2 py-0.5">
-                  <span className="shrink-0 text-foreground/30">{e.timestamp}</span>
-                  <span className="flex-1 text-foreground/60">{e.message}</span>
-                  {e.durationMs != null && (
-                    <span className="shrink-0 text-emerald-400/70">
-                      {e.durationMs}ms
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
+          <div className="min-h-0 flex-1 overflow-y-auto font-mono text-[10px] leading-relaxed text-foreground/50">
+            {events.map((e) => (
+              <div key={e.id} className="flex gap-2 py-0.5">
+                <span className="shrink-0 text-foreground/30">{e.timestamp}</span>
+                <span className="flex-1 text-foreground/60">{e.message}</span>
+                {e.durationMs != null && (
+                  <span className="shrink-0 text-emerald-400/70">
+                    {e.durationMs}ms
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

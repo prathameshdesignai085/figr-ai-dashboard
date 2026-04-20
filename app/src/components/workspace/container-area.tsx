@@ -73,7 +73,7 @@ export function ContainerArea({ workspace }: { workspace: Space | Shell }) {
 
   return (
     <div className="flex h-full flex-col">
-      <ContainerTabBar />
+      <ContainerTabBar space={isSpace ? workspace : undefined} />
 
       <div className="relative flex-1 overflow-hidden">
         <AnimatePresence mode="wait">

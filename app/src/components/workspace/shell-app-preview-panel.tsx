@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   LayoutTemplate,
@@ -198,7 +198,18 @@ export function ShellAppPreviewPanel({ shellId }: { shellId: string }) {
   );
 
   const [activePath, setActivePath] = useState("/");
-  const [device, setDevice] = useState<Device>("desktop");
+  // Default device follows the kept output's platform — mobile shells should
+  // open inside the phone DeviceFrame (same chrome Spaces uses), not desktop.
+  // User can still switch via the device toggle in the URL bar.
+  const initialDevice: Device =
+    previewOut?.platform === "mobile" ? "mobile" : "desktop";
+  const [device, setDevice] = useState<Device>(initialDevice);
+  // Re-sync device on shell change (this component can persist across shells
+  // depending on parent keying — explicit reset keeps the default predictable).
+  useEffect(() => {
+    setDevice(previewOut?.platform === "mobile" ? "mobile" : "desktop");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shellId]);
   const [fileTreeOpen, setFileTreeOpen] = useState(false);
   const [inspectMode, setInspectMode] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);

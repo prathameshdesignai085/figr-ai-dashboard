@@ -56,6 +56,31 @@ export const useShellStore = create<ShellState>((set, get) => ({
       designSystemNote: "Internal DS — Figma library v3",
       tokenPreferences: "Radius sm/md, neutral grays, single accent",
     },
+    {
+      id: "shell-demo-mobile-1",
+      name: "Mobile activity shell",
+      description:
+        "Bottom nav + card stack, RN/Expo defaults for fitness-style mobile apps.",
+      createdAt: "2026-04-05T12:00:00Z",
+      updatedAt: "2026-04-12T09:00:00Z",
+      contextItems: [
+        {
+          id: "shctx-mobile-1",
+          name: "Mobile primitives",
+          type: "document",
+          source: "paste",
+          addedAt: "2026-04-05T12:00:00Z",
+          content:
+            "# Mobile primitives\n- BottomTabBar, ScreenScaffold, StatTile\n- Safe-area aware, one-handed reach (CTAs in bottom 1/3)",
+        },
+      ],
+      connectedKnowledge: ["design-system"],
+      instructions:
+        "Use the mobile shell components. Optimize for one-handed use; prioritize today's progress over historical depth.",
+      techStack: "React Native, Expo, NativeWind",
+      designSystemNote: "Mobile DS — Figma library v1 (sport/fitness)",
+      tokenPreferences: "Radius lg, dark surface, single accent (violet)",
+    },
   ],
 
   getShell: (id) => get().shells.find((s) => s.id === id),

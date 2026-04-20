@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 import type { Chat } from "@/types";
+import {
+  MOBILE_MVP_BUILD_PROJECT_ID,
+  MOBILE_MVP_BUILT_OUTPUT_ID,
+} from "@/lib/seed/mobile-mvp-demo-build";
 
 interface ChatState {
   chats: Chat[];
@@ -240,6 +244,166 @@ export const useChatStore = create<ChatState>((set, get) => ({
       updatedAt: "2026-04-03T11:00:00Z",
       messages: [],
     },
+    // ── Mobile App MVP demo — completed chat that walks from prompt → exploration → hi-fi → built RN prototype.
+    // Backed by `mobileMvpDemoBuildProject` in useBuildStore so the Built output's
+    // buildProjectId resolves and the On Device tab + Build preview both light up.
+    {
+      id: "chat-mvp-1",
+      spaceId: "space-3",
+      shellId: null,
+      name: "Activity tracker — kickoff",
+      createdAt: "2026-04-15T09:30:00Z",
+      updatedAt: "2026-04-18T10:20:00Z",
+      messages: [
+        {
+          id: "msg-mvp-1",
+          chatId: "chat-mvp-1",
+          role: "user",
+          content:
+            "I want to start a daily activity tracker. Just a phone home screen for now — show me a couple of directions.",
+          outputs: [],
+          contextItemIds: [],
+          timestamp: "2026-04-15T09:30:00Z",
+        },
+        {
+          id: "msg-mvp-2",
+          chatId: "chat-mvp-1",
+          role: "assistant",
+          content:
+            "Two directions for the home screen. The first leans on a single hero ring (Apple-Health-style), the second on stacked activity cards (Strava-style).",
+          outputs: [
+            {
+              id: "out-mvp-explore-a",
+              messageId: "msg-mvp-2",
+              chatId: "chat-mvp-1",
+              spaceId: "space-3",
+              shellId: null,
+              type: "approach",
+              fidelity: "exploration",
+              title: "A · Hero ring + recent",
+              summary:
+                "One big progress ring above the fold (steps + active min), three stat tiles, and a short recent-activity list. Glanceable in 1s.",
+              content:
+                "# A · Hero ring + recent\n\n**Goal:** make today's progress legible in one glance.\n\n## Layout\n- Hero ring card (steps · % of goal) — full width, gradient fill\n- 3-tile row: active min · kcal · km\n- Recent activity (2-3 entries)\n- Primary 'Log workout' CTA\n- 4-tab bottom nav: Home · Activity · Insights · Profile\n\n## Why this works\n- Big, friendly hero — feels rewarding\n- Lower-screen CTA reachable with thumb\n- Tab bar instead of a drawer keeps chrome out of the way",
+              kept: true,
+              keptAt: "2026-04-15T09:36:00Z",
+              canvasPosition: { x: 80, y: 80 },
+              platform: "mobile",
+            },
+            {
+              id: "out-mvp-explore-b",
+              messageId: "msg-mvp-2",
+              chatId: "chat-mvp-1",
+              spaceId: "space-3",
+              shellId: null,
+              type: "approach",
+              fidelity: "exploration",
+              title: "B · Activity feed-first",
+              summary:
+                "Lead with a chronological feed of workouts. Today's totals live in a sticky header. Better for power users, denser visually.",
+              content:
+                "# B · Activity feed-first\n\n**Goal:** privilege history over today's snapshot.\n\n## Layout\n- Sticky header: today's steps + kcal + minutes (compact)\n- Vertical feed of workouts (cards with map/route thumbnails)\n- Floating action button: Log workout\n- 4-tab bottom nav\n\n## Trade-offs\n- Denser, more for power users\n- Less of a 'wow on open' moment\n- Hero stats compete with feed visually",
+              kept: false,
+              keptAt: null,
+              canvasPosition: null,
+              platform: "mobile",
+            },
+          ],
+          contextItemIds: [],
+          timestamp: "2026-04-15T09:35:00Z",
+        },
+        {
+          id: "msg-mvp-3",
+          chatId: "chat-mvp-1",
+          role: "user",
+          content:
+            "Let's go with A — hero ring. Make it a hi-fi screen and a working RN prototype I can preview on my phone.",
+          outputs: [],
+          contextItemIds: [],
+          timestamp: "2026-04-17T16:40:00Z",
+        },
+        {
+          id: "msg-mvp-4",
+          chatId: "chat-mvp-1",
+          role: "assistant",
+          content:
+            "Done. Here's a hi-fi mock of the home screen plus a live RN prototype — open the Mobile tab to scan and run it on Expo Go.",
+          outputs: [
+            {
+              id: "out-mvp-hi-fi",
+              messageId: "msg-mvp-4",
+              chatId: "chat-mvp-1",
+              spaceId: "space-3",
+              shellId: null,
+              type: "screen",
+              fidelity: "hi-fi",
+              title: "Activity Home — Hi-fi",
+              summary:
+                "Polished home screen with hero ring, stat tiles, recent workouts, and Log workout CTA.",
+              content: `<div style="background:#0f0f0f;min-height:100%;padding:18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#fff;display:flex;justify-content:center">
+  <div style="width:360px;background:#fff;border-radius:36px;border:10px solid #0a0a0a;overflow:hidden;box-shadow:0 30px 60px rgba(0,0,0,0.5);position:relative">
+    <div style="position:absolute;top:8px;left:50%;transform:translateX(-50%);width:96px;height:24px;border-radius:999px;background:#0a0a0a;z-index:5"></div>
+    <div style="display:flex;justify-content:space-between;padding:12px 24px 8px;font-size:11px;font-weight:600;color:#18181b">
+      <span>9:41</span><span>● ▮ ▮▮</span>
+    </div>
+    <div style="padding:8px 18px 18px">
+      <div style="font-size:12px;color:#71717a">Good morning</div>
+      <div style="font-size:22px;font-weight:700;color:#18181b;margin-bottom:16px">Pratea</div>
+      <div style="display:flex;gap:14px;padding:16px;border-radius:18px;background:linear-gradient(135deg,#7c6ef5,#a294fb);color:#fff;margin-bottom:14px;align-items:center">
+        <div style="width:78px;height:78px;border-radius:50%;border:8px solid rgba(255,255,255,0.25);border-top-color:#fff;transform:rotate(-30deg)"></div>
+        <div style="flex:1">
+          <div style="font-size:24px;font-weight:700">7,420</div>
+          <div style="font-size:11px;opacity:0.85">steps · 62% of goal</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+        <div style="background:#f4f4f5;border-radius:12px;padding:10px;text-align:center"><div style="font-weight:700;color:#18181b">38</div><div style="font-size:10px;color:#71717a">active min</div></div>
+        <div style="background:#f4f4f5;border-radius:12px;padding:10px;text-align:center"><div style="font-weight:700;color:#18181b">412</div><div style="font-size:10px;color:#71717a">kcal</div></div>
+        <div style="background:#f4f4f5;border-radius:12px;padding:10px;text-align:center"><div style="font-weight:700;color:#18181b">5.2</div><div style="font-size:10px;color:#71717a">km</div></div>
+      </div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#71717a;margin:8px 0">Recent activity</div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e4e4e7;border-radius:12px;margin-bottom:6px">
+        <div style="width:28px;height:28px;border-radius:50%;background:#ede9fe;color:#7c6ef5;display:flex;align-items:center;justify-content:center;font-weight:700">R</div>
+        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:#18181b">Morning run</div><div style="font-size:11px;color:#71717a">3.2 km · 18 min · today</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e4e4e7;border-radius:12px;margin-bottom:6px">
+        <div style="width:28px;height:28px;border-radius:50%;background:#ede9fe;color:#7c6ef5;display:flex;align-items:center;justify-content:center;font-weight:700">Y</div>
+        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:#18181b">Yoga</div><div style="font-size:11px;color:#71717a">25 min · yesterday</div></div>
+      </div>
+      <button style="width:100%;padding:12px;border:none;border-radius:14px;background:#18181b;color:#fff;font-weight:600;font-size:13px;margin-top:8px">Log workout</button>
+    </div>
+  </div>
+</div>`,
+              kept: true,
+              keptAt: "2026-04-18T10:18:00Z",
+              canvasPosition: { x: 480, y: 80 },
+              platform: "mobile",
+            },
+            {
+              id: MOBILE_MVP_BUILT_OUTPUT_ID,
+              messageId: "msg-mvp-4",
+              chatId: "chat-mvp-1",
+              spaceId: "space-3",
+              shellId: null,
+              type: "screen",
+              fidelity: "built",
+              title: "Activity Home — RN prototype",
+              summary:
+                "Working Expo Snack scaffold (Home + bottom tab bar). Live in the Mobile preview — scan QR with Expo Go to run on a phone.",
+              content:
+                "# Activity Home — RN prototype\n\nReact Native (Expo) scaffold of the hero-ring home screen. Includes the bottom tab bar shell. Generated by Figred · ready to preview in Expo Go.",
+              kept: true,
+              keptAt: "2026-04-18T10:20:00Z",
+              canvasPosition: { x: 880, y: 80 },
+              platform: "mobile",
+              buildProjectId: MOBILE_MVP_BUILD_PROJECT_ID,
+            },
+          ],
+          contextItemIds: [],
+          timestamp: "2026-04-18T10:20:00Z",
+        },
+      ],
+    },
     {
       id: "chat-4",
       spaceId: null,
@@ -275,6 +439,120 @@ export const useChatStore = create<ChatState>((set, get) => ({
       createdAt: "2026-03-21T10:00:00Z",
       updatedAt: "2026-03-25T09:00:00Z",
       messages: [],
+    },
+    // ── Mobile shell demo — seed chat that backs `shell-demo-mobile-1` with one
+    // kept HTML output. `shell-app-preview-panel.tsx` (`findFirstKeptHtmlOutput`)
+    // picks this up so the App preview tab renders a phone-frame mock instead of
+    // falling back to the static AcmeVisionMock admin sidebar.
+    {
+      id: "chat-shell-demo-mobile-1",
+      spaceId: null,
+      shellId: "shell-demo-mobile-1",
+      name: "Mobile shell — kickoff",
+      createdAt: "2026-04-05T13:00:00Z",
+      updatedAt: "2026-04-12T09:00:00Z",
+      messages: [
+        {
+          id: "msg-shell-mobile-1",
+          chatId: "chat-shell-demo-mobile-1",
+          role: "assistant",
+          content:
+            "Bootstrapped the mobile shell with a phone-frame home screen — bottom tab bar, hero card, and one-handed CTA in the lower third.",
+          outputs: [
+            {
+              id: "out-shell-mobile-home",
+              messageId: "msg-shell-mobile-1",
+              chatId: "chat-shell-demo-mobile-1",
+              spaceId: null,
+              shellId: "shell-demo-mobile-1",
+              type: "screen",
+              fidelity: "built",
+              title: "Activity home — mobile shell",
+              summary:
+                "Phone-frame home screen scaffold for the mobile shell. Bottom tab bar, hero card, primary CTA in the lower third for one-handed reach.",
+              // Screen content only — no outer device chrome / status bar / home
+              // indicator. The shell App preview wraps this iframe in <DeviceFrame
+               // variant="iphone-15-pro"> (see shell-app-preview-panel.tsx +
+              // build-preview/live-preview-frame.tsx) which provides bezel,
+              // dynamic island, status bar, and home indicator.
+              content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobile shell — Home</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; background: #0f0f12; color: #f4f4f5; }
+    .app { display: flex; flex-direction: column; height: 100%; }
+    .content { flex: 1; overflow-y: auto; padding: 18px 18px 12px; }
+    .greeting { font-size: 12px; color: #a1a1aa; margin: 0 0 2px; }
+    .name { font-size: 22px; font-weight: 700; margin: 0 0 16px; color: #fafafa; }
+    .hero-card { padding: 18px; border-radius: 18px; background: linear-gradient(135deg, #7c6ef5 0%, #5b4ef0 100%); color: #fff; margin-bottom: 14px; }
+    .hero-card .label { font-size: 11px; opacity: 0.85; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .hero-card .value { font-size: 28px; font-weight: 700; line-height: 1.05; margin: 0 0 6px; }
+    .hero-card .meta { font-size: 12px; opacity: 0.85; margin: 0; }
+    .row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
+    .stat { background: #1f1f24; border: 1px solid #27272a; border-radius: 14px; padding: 12px; }
+    .stat .v { font-size: 16px; font-weight: 700; color: #fafafa; }
+    .stat .k { font-size: 11px; color: #a1a1aa; margin-top: 2px; }
+    .section { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #a1a1aa; margin: 10px 0 8px; }
+    .row-card { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #27272a; border-radius: 12px; margin-bottom: 6px; background: #18181b; }
+    .row-card .icon { width: 28px; height: 28px; border-radius: 8px; background: #2e2740; color: #b8aafd; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+    .row-card .meta .title { font-size: 13px; font-weight: 600; color: #fafafa; }
+    .row-card .meta .sub { font-size: 11px; color: #a1a1aa; margin-top: 1px; }
+    .cta { display: block; width: 100%; padding: 14px; border: none; border-radius: 14px; background: #7c6ef5; color: #fff; font-weight: 600; font-size: 14px; margin-top: 12px; cursor: pointer; }
+    .tabbar { display: grid; grid-template-columns: repeat(4,1fr); padding: 8px 0 6px; border-top: 1px solid #27272a; background: #0f0f12; font-size: 10px; color: #a1a1aa; }
+    .tab { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .tab .dot { width: 14px; height: 14px; border-radius: 4px; background: #3f3f46; }
+    .tab.active { color: #b8aafd; }
+    .tab.active .dot { background: #7c6ef5; }
+  </style>
+</head>
+<body>
+  <div class="app" data-figred-component="App">
+    <div class="content">
+      <p class="greeting">Today</p>
+      <p class="name">Ready to move</p>
+      <div class="hero-card" data-figred-component="HeroCard">
+        <p class="label">Daily streak</p>
+        <p class="value">12 days</p>
+        <p class="meta">Keep going — 2 more for a personal best.</p>
+      </div>
+      <div class="row">
+        <div class="stat"><div class="v">3</div><div class="k">workouts this week</div></div>
+        <div class="stat"><div class="v">82%</div><div class="k">weekly goal</div></div>
+      </div>
+      <div class="section">Pick up where you left off</div>
+      <div class="row-card">
+        <div class="icon">▶</div>
+        <div class="meta"><div class="title">Resume — Lower body</div><div class="sub">12 min · 6 exercises left</div></div>
+      </div>
+      <div class="row-card">
+        <div class="icon">★</div>
+        <div class="meta"><div class="title">Saved — Mobility flow</div><div class="sub">8 min · stretch &amp; recover</div></div>
+      </div>
+      <button class="cta" data-figred-component="StartWorkoutCTA">Start workout</button>
+    </div>
+    <div class="tabbar" data-figred-component="BottomTabBar">
+      <div class="tab active"><div class="dot"></div><span>Home</span></div>
+      <div class="tab"><div class="dot"></div><span>Workouts</span></div>
+      <div class="tab"><div class="dot"></div><span>Stats</span></div>
+      <div class="tab"><div class="dot"></div><span>Profile</span></div>
+    </div>
+  </div>
+</body>
+</html>`,
+              kept: true,
+              keptAt: "2026-04-05T13:05:00Z",
+              canvasPosition: { x: 80, y: 80 },
+              platform: "mobile",
+            },
+          ],
+          contextItemIds: [],
+          timestamp: "2026-04-05T13:01:00Z",
+        },
+      ],
     },
   ],
   activeChatId: null,
