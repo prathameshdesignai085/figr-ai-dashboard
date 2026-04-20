@@ -8,6 +8,7 @@ import {
   Bell,
   FolderTree,
   User,
+  Share2,
 } from "lucide-react";
 import type { Chat, InspectedElement, Output, ProjectRoute } from "@/types";
 import { useChatStore } from "@/stores/useChatStore";
@@ -21,6 +22,7 @@ import {
 import { appendInspectBridge } from "./build-preview/inspect-bridge";
 import { InspectorPanel } from "./inspector-panel";
 import { ShellMockFileTree } from "./shell-mock-file-tree";
+import { ShareOverlay } from "./share-overlay";
 
 type Device = "desktop" | "tablet" | "mobile";
 
@@ -215,6 +217,10 @@ export function ShellAppPreviewPanel({ shellId }: { shellId: string }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [inspectId, setInspectId] = useState<string | null>(null);
   const [draft, setDraft] = useState<InspectedElement | null>(null);
+  // Pair-via-Expo-Go floating panel. Local to this surface (Spaces have
+  // their own copy on the workspace store); no need to share state because
+  // only one shell preview is mounted at a time.
+  const [shareOverlayOpen, setShareOverlayOpen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const baselineRef = useRef<InspectedElement | null>(null);
 
@@ -276,7 +282,9 @@ export function ShellAppPreviewPanel({ shellId }: { shellId: string }) {
   const frameKey = `${refreshKey}-${activePath}-${previewOut?.id ?? "stub"}`;
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
+    // `relative` so the ShareOverlay's absolute positioning (right-3 top-12)
+    // anchors to this preview surface — not the page or the parent shell layout.
+    <div className="relative flex h-full min-h-0 min-w-0 flex-col bg-background">
       <div className="flex shrink-0 items-stretch border-b border-white/[0.06] bg-background">
         <div className="flex items-center gap-0.5 border-r border-white/[0.06] px-1.5 py-1">
           <button
@@ -314,6 +322,27 @@ export function ShellAppPreviewPanel({ shellId }: { shellId: string }) {
             onRefresh={() => setRefreshKey((k) => k + 1)}
             onOpenExternal={openExternal}
           />
+        </div>
+        {/* Right-side cluster — pair-via-Expo-Go entry point. Lives outside */}
+        {/* `PreviewUrlBar` so we don't disturb that shared component, and so */}
+        {/* the action stays visually distinct from URL/route concerns. */}
+        <div className="flex items-center gap-0.5 border-l border-white/[0.06] px-1.5 py-1">
+          <button
+            type="button"
+            onClick={() => setShareOverlayOpen((o) => !o)}
+            className={cn(
+              "flex h-8 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors",
+              shareOverlayOpen
+                ? "bg-violet-400/10 text-violet-300"
+                : "text-foreground/45 hover:bg-white/[0.05] hover:text-foreground/70"
+            )}
+            title={shareOverlayOpen ? "Hide pairing panel" : "View on phone"}
+          >
+            <Share2 size={13} aria-hidden />
+            <span className="hidden sm:inline">
+              {shareOverlayOpen ? "Hide" : "View on phone"}
+            </span>
+          </button>
         </div>
       </div>
 
@@ -376,6 +405,20 @@ export function ShellAppPreviewPanel({ shellId }: { shellId: string }) {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Pair-via-Expo-Go floating panel. `showBackdrop={false}` is the key */}
+      {/* difference from the Spaces variant — Shell users want to keep */}
+      {/* tweaking the preview while the QR is up, so no dim scrim. */}
+      {/* `isMobile` follows the device toggle so the panel's copy + mock */}
+      {/* sessions match what's being previewed. */}
+      {shareOverlayOpen && (
+        <ShareOverlay
+          isMobile={device === "mobile"}
+          targetId={shellId}
+          showBackdrop={false}
+          onClose={() => setShareOverlayOpen(false)}
+        />
+      )}
     </div>
   );
 }
