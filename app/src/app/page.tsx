@@ -6,8 +6,10 @@ import {
   PenTool,
   Scan,
   Paperclip,
+  Sparkles,
 } from "lucide-react";
 import { ChatComposer } from "@/components/chat/chat-composer";
+import { AboutOverlay } from "@/components/about/about-overlay";
 
 const quickActions = [
   {
@@ -34,9 +36,22 @@ const quickActions = [
 
 export default function HomePage() {
   const [composerValue, setComposerValue] = useState("");
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   return (
-    <div className="flex h-full flex-col items-center justify-center px-6">
+    <div className="relative flex h-full flex-col items-center justify-center px-6">
+      {/* Top-right: in-app explainer entry point. Home-only by design — */}
+      {/* inside Spaces/Shells the workspace already owns the top-right. */}
+      <button
+        type="button"
+        onClick={() => setAboutOpen(true)}
+        aria-label="Open the prototype guide"
+        className="absolute right-6 top-6 inline-flex items-center gap-1.5 rounded-full border border-white/[0.10] bg-white/[0.02] px-3 py-1.5 text-xs font-medium text-foreground/70 transition-colors hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-foreground"
+      >
+        <Sparkles size={12} strokeWidth={1.8} className="text-[#8c83ee]" />
+        What's in this prototype
+      </button>
+
       <div className="w-full max-w-2xl space-y-6">
         {/* Greeting */}
         <div className="text-center space-y-4">
@@ -88,6 +103,8 @@ export default function HomePage() {
           ))}
         </div>
       </div>
+
+      <AboutOverlay open={aboutOpen} onOpenChange={setAboutOpen} />
     </div>
   );
 }
