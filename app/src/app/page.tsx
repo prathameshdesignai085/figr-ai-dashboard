@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { AboutOverlay } from "@/components/about/about-overlay";
+import { HomeNudge } from "@/components/about/home-nudge";
 
 const quickActions = [
   {
@@ -37,6 +38,10 @@ const quickActions = [
 export default function HomePage() {
   const [composerValue, setComposerValue] = useState("");
   const [aboutOpen, setAboutOpen] = useState(false);
+  // Tracks whether the first-session nudge bubble is on screen, so we can
+  // pause the pill's halo while the bubble is up — two pulsing signals
+  // pointing at the same thing reads as visual chatter.
+  const [nudgeVisible, setNudgeVisible] = useState(false);
 
   return (
     <div className="relative flex h-full flex-col items-center justify-center px-6">
@@ -44,16 +49,28 @@ export default function HomePage() {
       {/* inside Spaces/Shells the workspace already owns the top-right. */}
       {/* The slow indigo halo (`pill-attention` keyframes in globals.css) */}
       {/* draws the eye on first load; it pauses on hover so the hover */}
-      {/* border + bg take over without the glow fighting them. */}
+      {/* border + bg take over without the glow fighting them. The halo */}
+      {/* also pauses while the first-session nudge bubble is visible. */}
       <button
         type="button"
         onClick={() => setAboutOpen(true)}
         aria-label="Open the prototype guide"
-        className="absolute right-6 top-6 inline-flex items-center gap-1.5 rounded-full border border-white/[0.14] bg-white/[0.02] px-3 py-1.5 text-xs font-medium text-foreground/80 transition-colors animate-[pill-attention_3.5s_ease-in-out_infinite] hover:border-white/[0.20] hover:bg-white/[0.06] hover:text-foreground hover:[animation-play-state:paused] focus-visible:[animation-play-state:paused]"
+        className={`absolute right-6 top-6 inline-flex items-center gap-1.5 rounded-full border border-white/[0.14] bg-white/[0.02] px-3 py-1.5 text-xs font-medium text-foreground/80 transition-colors hover:border-white/[0.20] hover:bg-white/[0.06] hover:text-foreground ${
+          nudgeVisible
+            ? ""
+            : "animate-[pill-attention_3.5s_ease-in-out_infinite] hover:[animation-play-state:paused] focus-visible:[animation-play-state:paused]"
+        }`}
       >
         <Sparkles size={12} strokeWidth={1.8} className="text-[#8c83ee]" />
         What's in this prototype
       </button>
+
+      {/* First-session nudge bubble — points up at the pill. Uses */}
+      {/* sessionStorage so each fresh demo session shows it once. */}
+      <HomeNudge
+        onOpen={() => setAboutOpen(true)}
+        onVisibleChange={setNudgeVisible}
+      />
 
       <div className="w-full max-w-2xl space-y-6">
         {/* Greeting */}
