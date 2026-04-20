@@ -42,11 +42,14 @@ export default function HomePage() {
     <div className="relative flex h-full flex-col items-center justify-center px-6">
       {/* Top-right: in-app explainer entry point. Home-only by design — */}
       {/* inside Spaces/Shells the workspace already owns the top-right. */}
+      {/* The slow indigo halo (`pill-attention` keyframes in globals.css) */}
+      {/* draws the eye on first load; it pauses on hover so the hover */}
+      {/* border + bg take over without the glow fighting them. */}
       <button
         type="button"
         onClick={() => setAboutOpen(true)}
         aria-label="Open the prototype guide"
-        className="absolute right-6 top-6 inline-flex items-center gap-1.5 rounded-full border border-white/[0.10] bg-white/[0.02] px-3 py-1.5 text-xs font-medium text-foreground/70 transition-colors hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-foreground"
+        className="absolute right-6 top-6 inline-flex items-center gap-1.5 rounded-full border border-white/[0.14] bg-white/[0.02] px-3 py-1.5 text-xs font-medium text-foreground/80 transition-colors animate-[pill-attention_3.5s_ease-in-out_infinite] hover:border-white/[0.20] hover:bg-white/[0.06] hover:text-foreground hover:[animation-play-state:paused] focus-visible:[animation-play-state:paused]"
       >
         <Sparkles size={12} strokeWidth={1.8} className="text-[#8c83ee]" />
         What's in this prototype

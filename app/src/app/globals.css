@@ -144,3 +144,28 @@
     @apply font-sans;
   }
 }
+
+/* Soft, slow indigo halo used by the home-page "What's in this prototype"
+   pill to draw the eye without distracting from the chat input below it.
+   Animates box-shadow only — border-color is left to Tailwind so the
+   hover state still takes over cleanly. The pill is only present on `/`,
+   so this animation never bleeds into workspace surfaces. */
+@keyframes pill-attention {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(140, 131, 238, 0),
+      0 0 0 0 rgba(140, 131, 238, 0);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(140, 131, 238, 0.18),
+      0 0 22px 4px rgba(140, 131, 238, 0.32);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-[pill-attention"] {
+    animation: none !important;
+  }
+}
