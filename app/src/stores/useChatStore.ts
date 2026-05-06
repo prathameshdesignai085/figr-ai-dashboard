@@ -554,6 +554,138 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
       ],
     },
+    {
+      id: "chat-shell-demo-web-variation-1",
+      spaceId: null,
+      shellId: "shell-demo-web-variation-1",
+      name: "Revenue shell — kickoff",
+      createdAt: "2026-05-01T09:20:00Z",
+      updatedAt: "2026-05-01T09:40:00Z",
+      messages: [
+        {
+          id: "msg-shell-web-variation-1",
+          chatId: "chat-shell-demo-web-variation-1",
+          role: "assistant",
+          content:
+            "Bootstrapped a web variation with top navigation, gradient KPI glass cards, and a compact pipeline lane to showcase a different shell style.",
+          outputs: [
+            {
+              id: "out-shell-web-variation-1",
+              messageId: "msg-shell-web-variation-1",
+              chatId: "chat-shell-demo-web-variation-1",
+              spaceId: null,
+              shellId: "shell-demo-web-variation-1",
+              type: "screen",
+              fidelity: "built",
+              title: "Revenue command center — web shell",
+              summary:
+                "Distinct web shell variation with top nav, gradient KPI glass cards, forecast panel, and pipeline board.",
+              content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Revenue command shell</title>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:radial-gradient(1200px 600px at 80% -20%, #4f46e520 0%, transparent 60%),#0a0b11;color:#e5e7eb;overflow:hidden}
+    .app{height:100vh;display:flex;flex-direction:column}
+    .top{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid #ffffff12;background:#0f1220cc;backdrop-filter:blur(10px)}
+    .brand{font-size:13px;font-weight:700;color:#eef2ff;letter-spacing:.04em}
+    .tabs{display:flex;gap:8px}
+    .tab{padding:7px 12px;border-radius:10px;font-size:12px;color:#a5b4fc;background:#ffffff08}
+    .tab.active{background:#6366f130;color:#c7d2fe}
+    .main{flex:1;padding:14px 16px;display:grid;grid-template-columns:1.3fr .9fr;gap:12px;min-height:0}
+    .left,.right{display:flex;flex-direction:column;gap:12px;min-height:0}
+    .kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .kpi{padding:12px;border-radius:14px;border:1px solid #ffffff1a;background:linear-gradient(145deg,#1f2338 0%,#14182a 100%);box-shadow:0 8px 30px #00000035}
+    .kpi .label{font-size:11px;color:#94a3b8;margin-bottom:4px}
+    .kpi .value{font-size:22px;font-weight:700;color:#f8fafc}
+    .kpi .delta{font-size:11px;color:#34d399;margin-top:3px}
+    .panel{border:1px solid #ffffff14;border-radius:14px;background:#111625;padding:12px}
+    .panel h3{margin:0 0 10px;font-size:13px;color:#e2e8f0}
+    .chart{height:132px;border-radius:10px;background:linear-gradient(180deg,#4338ca3a,#0f172a00),#0f172a;position:relative;overflow:hidden}
+    .line{position:absolute;left:10px;right:10px;bottom:24px;height:2px;background:linear-gradient(90deg,#60a5fa,#a78bfa)}
+    .line::before,.line::after{content:"";position:absolute;top:-3px;width:8px;height:8px;border-radius:50%;background:#c4b5fd}
+    .line::before{left:18%}.line::after{left:74%}
+    .forecast{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+    .mini{padding:8px;border-radius:10px;background:#ffffff07;font-size:11px;color:#94a3b8}
+    .mini strong{display:block;color:#e2e8f0;margin-top:3px;font-size:14px}
+    .lanes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-height:0;flex:1}
+    .lane{border:1px solid #ffffff14;border-radius:12px;background:#0d1322;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:0}
+    .lane h4{margin:0;font-size:11px;color:#93c5fd;text-transform:uppercase;letter-spacing:.06em}
+    .card{border:1px solid #ffffff18;border-radius:10px;background:#131a2d;padding:8px}
+    .card .t{font-size:12px;color:#e2e8f0;font-weight:600}
+    .card .s{font-size:10px;color:#94a3b8;margin-top:2px}
+    .actions{display:flex;gap:8px}
+    button{border:none;border-radius:10px;padding:8px 10px;background:#6366f1;color:#fff;font-size:12px;font-weight:600}
+    button.alt{background:#ffffff10;color:#cbd5e1;border:1px solid #ffffff16}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="top">
+      <div class="brand">REVENUE COMMAND</div>
+      <div class="tabs">
+        <div class="tab active">Overview</div>
+        <div class="tab">Pipeline</div>
+        <div class="tab">Forecast</div>
+      </div>
+    </div>
+    <div class="main">
+      <section class="left">
+        <div class="kpis">
+          <div class="kpi"><div class="label">MRR</div><div class="value">$148.2k</div><div class="delta">+8.2% MoM</div></div>
+          <div class="kpi"><div class="label">Win rate</div><div class="value">34%</div><div class="delta">+2.1 pts</div></div>
+          <div class="kpi"><div class="label">Pipeline</div><div class="value">$1.9M</div><div class="delta">+11.7%</div></div>
+        </div>
+        <div class="panel">
+          <h3>Forecast trajectory</h3>
+          <div class="chart"><div class="line"></div></div>
+          <div class="forecast">
+            <div class="mini">This week<strong>$39k</strong></div>
+            <div class="mini">This month<strong>$156k</strong></div>
+            <div class="mini">Quarter<strong>$471k</strong></div>
+          </div>
+        </div>
+      </section>
+      <aside class="right panel">
+        <h3>Pipeline lanes</h3>
+        <div class="lanes">
+          <div class="lane">
+            <h4>Qualified</h4>
+            <div class="card"><div class="t">Stratacore Systems</div><div class="s">$42k • 72%</div></div>
+            <div class="card"><div class="t">Northstar</div><div class="s">$19k • 65%</div></div>
+          </div>
+          <div class="lane">
+            <h4>Proposal</h4>
+            <div class="card"><div class="t">Orbit Labs</div><div class="s">$88k • 58%</div></div>
+          </div>
+          <div class="lane">
+            <h4>Negotiation</h4>
+            <div class="card"><div class="t">AeroOps</div><div class="s">$120k • 44%</div></div>
+          </div>
+        </div>
+        <div class="actions">
+          <button>Create deal</button>
+          <button class="alt">Review risks</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</body>
+</html>`,
+              kept: true,
+              keptAt: "2026-05-01T09:40:00Z",
+              canvasPosition: { x: 1120, y: 120 },
+              platform: "web",
+            },
+          ],
+          contextItemIds: [],
+          timestamp: "2026-05-01T09:40:00Z",
+        },
+      ],
+    },
   ],
   activeChatId: null,
   archivedChatIds: new Set<string>(),

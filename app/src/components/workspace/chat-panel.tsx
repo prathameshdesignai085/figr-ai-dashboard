@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useMemo } from "react";
+import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import { nanoid } from "nanoid";
 import { createShapeId } from "tldraw";
 import {
   PanelLeft,
@@ -19,8 +20,27 @@ import { useShelfStore } from "@/stores/useShelfStore";
 import { useCanvasDeselectStore } from "@/stores/useCanvasDeselectStore";
 import { useRouter } from "next/navigation";
 import { ChatMessage } from "./chat-message";
-import { ChatInput, type ContextChip } from "./chat-input";
+import {
+  ChatInput,
+  type ContextChip,
+  type FigmaLinkInfo,
+  type ImageAttachmentInfo,
+} from "./chat-input";
 import { ChatHistoryPanel } from "./chat-history-panel";
+import { matchInvocation } from "@/lib/slash-commands";
+import {
+  buildSpaceContext,
+  getSpaceName,
+  getTopContextItemNames,
+} from "@/lib/space-context";
+import {
+  buildShellContext,
+  getShellName,
+  getTopShellSourceLabels,
+} from "@/lib/shell-context";
+import { streamDescribe, streamSkill } from "@/lib/describer-client";
+import { buildPayloadForSkill } from "@/lib/skill-payloads";
+import { runExtraction } from "@/lib/extract-runner";
 
 const shellQuickActions = [
   { icon: MonitorPlay, label: "Record your screen" },
@@ -49,6 +69,11 @@ export function ChatPanel(
   const marqueeCaptures = useShelfStore((s) => s.marqueeCaptures);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasSentMessage = useRef(false);
+
+  // Composer-local chips (figma links + uploaded/pasted images).
+  // Kept here rather than in useShelfStore because they're tied to the
+  // composer session, not the canvas.
+  const [composerChips, setComposerChips] = useState<ContextChip[]>([]);
 
   const activeChat = getActiveChat();
   const messages = activeChat?.messages || [];
@@ -84,10 +109,27 @@ export function ChatPanel(
       kind: "screenshot" as const,
       dataUrl: cap.dataUrl,
     }));
-    return [...outputChips, ...inspectChips, ...annotationChips, ...screenshotChips];
-  }, [allOutputs, selectedOutputIds, canvasInspectPicks, selectedAnnotationShapeIds, marqueeCaptures]);
+    return [
+      ...outputChips,
+      ...inspectChips,
+      ...annotationChips,
+      ...screenshotChips,
+      ...composerChips,
+    ];
+  }, [
+    allOutputs,
+    selectedOutputIds,
+    canvasInspectPicks,
+    selectedAnnotationShapeIds,
+    marqueeCaptures,
+    composerChips,
+  ]);
 
   const handleRemoveContextChip = useCallback((chip: ContextChip) => {
+    if (chip.kind === "figma-link" || chip.kind === "image") {
+      setComposerChips((prev) => prev.filter((c) => c.id !== chip.id));
+      return;
+    }
     if (chip.kind === "screenshot") {
       useShelfStore.getState().removeMarqueeCapture(chip.id);
       return;
@@ -103,6 +145,38 @@ export function ChatPanel(
       return;
     }
     useCanvasDeselectStore.getState().enqueueDeselect([chip.id]);
+  }, []);
+
+  const handleAddFigmaLink = useCallback((info: FigmaLinkInfo) => {
+    const title = info.fileName
+      ? info.frameName
+        ? `${info.fileName} · ${info.frameName}`
+        : info.fileName
+      : info.url;
+    setComposerChips((prev) => [
+      ...prev,
+      {
+        id: `figma-${nanoid(6)}`,
+        kind: "figma-link",
+        title,
+        url: info.url,
+        fileName: info.fileName,
+        frameName: info.frameName,
+      },
+    ]);
+  }, []);
+
+  const handleAddImage = useCallback((info: ImageAttachmentInfo) => {
+    setComposerChips((prev) => [
+      ...prev,
+      {
+        id: `img-${nanoid(6)}`,
+        kind: "image",
+        title: info.name,
+        dataUrl: info.dataUrl,
+        mimeType: info.mimeType,
+      },
+    ]);
   }, []);
 
   useEffect(() => {
@@ -128,6 +202,42 @@ export function ChatPanel(
             ),
           })),
         })),
+      }));
+    },
+    []
+  );
+
+  const appendAssistantChunk = useCallback(
+    (chatId: string, msgId: string, chunk: string) => {
+      useChatStore.setState((state) => ({
+        chats: state.chats.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                messages: chat.messages.map((m) =>
+                  m.id === msgId ? { ...m, content: m.content + chunk } : m
+                ),
+              }
+            : chat
+        ),
+      }));
+    },
+    []
+  );
+
+  const setAssistantStreaming = useCallback(
+    (chatId: string, msgId: string, streaming: boolean) => {
+      useChatStore.setState((state) => ({
+        chats: state.chats.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                messages: chat.messages.map((m) =>
+                  m.id === msgId ? { ...m, streaming } : m
+                ),
+              }
+            : chat
+        ),
       }));
     },
     []
@@ -160,33 +270,70 @@ export function ChatPanel(
         .map((_, i) => `Annotation ${i + 1}`);
       const screenshotLabels = captures.map((c) => c.label);
       const canvasLabels = [...outputTitles, ...inspectLabels, ...annLabels, ...screenshotLabels];
+      const shellLine =
+        isShell && shell
+          ? (() => {
+              const selectedPacks =
+                shell.scaffoldPacks
+                  ?.filter((pack) => pack.selected)
+                  .map((pack) => pack.name) ?? [];
+              const snapshot = shell.dsSnapshotRef
+                ? `${shell.dsSnapshotRef.name} ${shell.dsSnapshotRef.version}`
+                : "generic fallback";
+              const packLabel =
+                selectedPacks.length > 0 ? selectedPacks.join(", ") : "none";
+              return `— Shell context: snapshot ${snapshot}; packs ${packLabel}`;
+            })()
+          : null;
       const fullContent =
         canvasLabels.length > 0
-          ? `${content}\n\n— Selected on canvas: ${canvasLabels.join(", ")}`
-          : content;
+          ? `${content}\n\n— Selected on canvas: ${canvasLabels.join(", ")}${
+              shellLine ? `\n${shellLine}` : ""
+            }`
+          : shellLine
+            ? `${content}\n\n${shellLine}`
+            : content;
 
-      const screenshotUrls = captures
+      const marqueeUrls = captures
         .map((c) => c.dataUrl)
         .filter((url) => url.length > 0);
+      const composerImageUrls = composerChips
+        .filter((c) => c.kind === "image" && c.dataUrl)
+        .map((c) => c.dataUrl as string);
+      const screenshotUrls = [...marqueeUrls, ...composerImageUrls];
 
-      const msgId = `msg-${Date.now()}`;
+      const figmaAttachments = composerChips
+        .filter((c) => c.kind === "figma-link" && c.url)
+        .map((c) => ({
+          url: c.url as string,
+          fileName: c.fileName,
+          frameName: c.frameName,
+        }));
+
+      const userMsgId = `msg-${Date.now()}`;
+      const chatId = activeChat.id;
+
       useChatStore.setState((state) => ({
         chats: state.chats.map((chat) =>
-          chat.id === activeChat.id
+          chat.id === chatId
             ? {
                 ...chat,
                 updatedAt: new Date().toISOString(),
                 messages: [
                   ...chat.messages,
                   {
-                    id: msgId,
-                    chatId: activeChat.id,
+                    id: userMsgId,
+                    chatId,
                     role: "user" as const,
                     content: fullContent,
                     outputs: [],
                     contextItemIds: [],
                     screenshotUrls:
                       screenshotUrls.length > 0 ? screenshotUrls : undefined,
+                    figmaAttachments:
+                      figmaAttachments.length > 0
+                        ? figmaAttachments
+                        : undefined,
                     timestamp: new Date().toISOString(),
                   },
                 ],
@@ -199,8 +346,219 @@ export function ChatPanel(
       if (captures.length > 0) {
         useShelfStore.getState().clearMarqueeCaptures();
       }
+
+      // Detect /figma-describe invocation
+      const invocation = matchInvocation(content);
+      if (invocation && invocation.command.id === "figma-describe") {
+        const imageChip = composerChips.find((c) => c.kind === "image");
+        const figmaChip = composerChips.find((c) => c.kind === "figma-link");
+
+        if (!imageChip && !figmaChip) {
+          const errId = `msg-${Date.now()}-err`;
+          useChatStore.setState((state) => ({
+            chats: state.chats.map((chat) =>
+              chat.id === chatId
+                ? {
+                    ...chat,
+                    messages: [
+                      ...chat.messages,
+                      {
+                        id: errId,
+                        chatId,
+                        role: "assistant" as const,
+                        content:
+                          "Attach a screen image or paste a Figma link before running `/figma-describe`.",
+                        outputs: [],
+                        contextItemIds: [],
+                        timestamp: new Date().toISOString(),
+                      },
+                    ],
+                  }
+                : chat
+            ),
+          }));
+          setComposerChips([]);
+          return;
+        }
+
+        const assistantMsgId = `msg-${Date.now()}-asst`;
+        const isMock = !imageChip && !!figmaChip;
+        useChatStore.setState((state) => ({
+          chats: state.chats.map((chat) =>
+            chat.id === chatId
+              ? {
+                  ...chat,
+                  messages: [
+                    ...chat.messages,
+                    {
+                      id: assistantMsgId,
+                      chatId,
+                      role: "assistant" as const,
+                      content: "",
+                      outputs: [],
+                      contextItemIds: [],
+                      streaming: true,
+                      mock: isMock,
+                      timestamp: new Date().toISOString(),
+                    },
+                  ],
+                }
+              : chat
+          ),
+        }));
+
+        const spaceId = space?.id ?? null;
+        const shellId = shell?.id ?? null;
+        const productContext = isShell
+          ? buildShellContext(shellId)
+          : buildSpaceContext(spaceId);
+        const userHint = invocation.hint || undefined;
+
+        const finish = () => {
+          setAssistantStreaming(chatId, assistantMsgId, false);
+        };
+
+        if (imageChip && imageChip.dataUrl) {
+          streamDescribe(
+            {
+              mode: "image",
+              imageBase64: imageChip.dataUrl,
+              imageMimeType: imageChip.mimeType || "image/png",
+              productContext,
+              userHint,
+            },
+            {
+              onChunk: (text) => appendAssistantChunk(chatId, assistantMsgId, text),
+              onDone: finish,
+              onError: (msg) => {
+                appendAssistantChunk(
+                  chatId,
+                  assistantMsgId,
+                  `\n\n_Describer error: ${msg}_`
+                );
+                finish();
+              },
+            }
+          );
+        } else if (figmaChip && figmaChip.url) {
+          streamDescribe(
+            {
+              mode: "figma-link",
+              figmaUrl: figmaChip.url,
+              fileName: figmaChip.fileName,
+              frameName: figmaChip.frameName,
+              productContext,
+              userHint,
+              spaceName: isShell ? getShellName(shellId) : getSpaceName(spaceId),
+              contextItemNames: isShell
+                ? getTopShellSourceLabels(shellId)
+                : getTopContextItemNames(spaceId),
+            },
+            {
+              onChunk: (text) => appendAssistantChunk(chatId, assistantMsgId, text),
+              onDone: finish,
+              onError: (msg) => {
+                appendAssistantChunk(
+                  chatId,
+                  assistantMsgId,
+                  `\n\n_Describer error: ${msg}_`
+                );
+                finish();
+              },
+            }
+          );
+        }
+      } else if (
+        invocation &&
+        !isShell &&
+        space &&
+        invocation.command.id === "extract-components"
+      ) {
+        // Client-side mock extraction — runs the loader timing + populates
+        // useExtractStore + tags the assistant message with extractionId.
+        void runExtraction(space.id, chatId);
+      } else if (
+        invocation &&
+        !isShell &&
+        space &&
+        ["prd", "user-flow", "states", "check-design-system-compliance", "edge-cases-check"].includes(
+          invocation.command.id
+        )
+      ) {
+        // Generator-style skill (Space-context only).
+        const skillId = invocation.command.id;
+        const payload = buildPayloadForSkill(
+          skillId,
+          space.id,
+          invocation.hint || undefined
+        );
+        if (!payload) {
+          // Shouldn't happen — id was just whitelisted above. Defensive.
+          return;
+        }
+
+        const assistantMsgId = `msg-${Date.now()}-asst`;
+        useChatStore.setState((state) => ({
+          chats: state.chats.map((chat) =>
+            chat.id === chatId
+              ? {
+                  ...chat,
+                  messages: [
+                    ...chat.messages,
+                    {
+                      id: assistantMsgId,
+                      chatId,
+                      role: "assistant" as const,
+                      content: "",
+                      outputs: [],
+                      contextItemIds: [],
+                      streaming: true,
+                      skillName: skillId,
+                      timestamp: new Date().toISOString(),
+                    },
+                  ],
+                }
+              : chat
+          ),
+        }));
+
+        const finish = () => {
+          setAssistantStreaming(chatId, assistantMsgId, false);
+        };
+
+        streamSkill(
+          skillId,
+          payload,
+          {
+            onChunk: (text) =>
+              appendAssistantChunk(chatId, assistantMsgId, text),
+            onDone: finish,
+            onError: (msg) => {
+              appendAssistantChunk(
+                chatId,
+                assistantMsgId,
+                `\n\n_Skill error: ${msg}_`
+              );
+              finish();
+            },
+          }
+        );
+      }
+
+      // Clear composer chips after sending
+      setComposerChips([]);
     },
-    [activeChat, closeSidebar, allOutputs]
+    [
+      activeChat,
+      closeSidebar,
+      allOutputs,
+      composerChips,
+      space,
+      shell,
+      isShell,
+      appendAssistantChunk,
+      setAssistantStreaming,
+    ]
   );
 
   const handleNewChat = () => {
@@ -330,6 +688,8 @@ export function ChatPanel(
             onSend={handleSend}
             contextChips={contextChips}
             onRemoveContextChip={handleRemoveContextChip}
+            onAddFigmaLink={handleAddFigmaLink}
+            onAddImage={handleAddImage}
           />
         </div>
       </div>

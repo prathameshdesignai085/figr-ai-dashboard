@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { Chat, InspectedElement, Output, ProjectRoute } from "@/types";
 import { useChatStore } from "@/stores/useChatStore";
+import { useShellStore } from "@/stores/useShellStore";
 import { cn } from "@/lib/utils";
 import { PreviewUrlBar } from "./build-preview/preview-url-bar";
 import {
@@ -194,6 +195,7 @@ function AcmeVisionMock() {
 
 export function ShellAppPreviewPanel({ shellId }: { shellId: string }) {
   const chats = useChatStore((s) => s.chats);
+  const shell = useShellStore((s) => s.getShell(shellId));
   const previewOut = useMemo(
     () => findFirstKeptHtmlOutput(chats, shellId),
     [chats, shellId]
@@ -280,6 +282,7 @@ export function ShellAppPreviewPanel({ shellId }: { shellId: string }) {
 
   const showInspector = inspectMode && draft != null;
   const frameKey = `${refreshKey}-${activePath}-${previewOut?.id ?? "stub"}`;
+  const selectedPacks = shell?.scaffoldPacks?.filter((pack) => pack.selected) ?? [];
 
   return (
     // `relative` so the ShareOverlay's absolute positioning (right-3 top-12)

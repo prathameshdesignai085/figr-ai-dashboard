@@ -13,11 +13,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/space/") ||
     pathname.startsWith("/chat/") ||
     isShellBuilder;
+  // Public handover pages + component PR pages: no left nav, full-bleed.
+  const isPublicHandover = pathname.startsWith("/h/");
+  const isPublicPr = pathname.startsWith("/pr/");
 
-  if (isWorkspace) {
+  if (isWorkspace || isPublicHandover || isPublicPr) {
     return (
       <div className="flex h-screen w-screen overflow-hidden bg-background">
-        <main className="flex-1 overflow-hidden">{children}</main>
+        <main className="flex-1 overflow-auto">{children}</main>
       </div>
     );
   }

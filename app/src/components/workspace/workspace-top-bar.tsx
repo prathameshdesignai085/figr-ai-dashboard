@@ -1,11 +1,14 @@
 "use client";
 
-import { ArrowLeft, PanelRight, Layout, Settings } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, PanelRight, Layout, Settings, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Space } from "@/types";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
+import { useHandoverStore } from "@/stores/useHandoverStore";
 import { cn } from "@/lib/utils";
 import { platformBadgeColors, PlatformIcon, platformLabel } from "@/lib/platform";
+import { HandoverPublishModal } from "@/components/handover/handover-publish-modal";
 
 const stageBadgeColors: Record<string, string> = {
   brainstorm: "bg-amber-400/10 text-amber-400",
@@ -25,11 +28,14 @@ export function WorkspaceTopBar({
   const {
     toggleSidebar,
     sidebarOpen,
-    sidebarMode,
     toggleCanvasTab,
     containerOpen,
     activeTabId,
   } = useWorkspaceStore();
+  const captureCount = useHandoverStore(
+    (s) => s.capturedStates.filter((c) => c.spaceId === space.id).length
+  );
+  const [publishOpen, setPublishOpen] = useState(false);
 
   return (
     <div className="flex h-11 shrink-0 items-center justify-between border-b border-white/[0.06] bg-background px-3">
@@ -72,16 +78,30 @@ export function WorkspaceTopBar({
       {/* Right */}
       <div className="flex items-center gap-1">
         <button
-          onClick={() => toggleSidebar("shelf")}
+          type="button"
+          onClick={() => setPublishOpen(true)}
+          className="flex h-7 items-center gap-1.5 rounded-md bg-primary/15 px-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/25"
+          title="Publish a handover for this Space"
+        >
+          <Send size={13} />
+          Publish handover
+          {captureCount > 0 && (
+            <span className="ml-0.5 rounded bg-primary/25 px-1 py-px text-[9px] font-semibold leading-none">
+              {captureCount}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => toggleSidebar()}
           className={cn(
             "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs transition-colors",
-            sidebarOpen && sidebarMode === "shelf"
+            sidebarOpen
               ? "bg-white/[0.08] text-foreground/80"
               : "text-foreground/40 hover:text-foreground/60 hover:bg-white/[0.04]"
           )}
         >
           <PanelRight size={14} />
-          Shelf
+          Context
         </button>
         <button
           type="button"
@@ -103,6 +123,12 @@ export function WorkspaceTopBar({
           <Settings size={14} />
         </button>
       </div>
+
+      <HandoverPublishModal
+        open={publishOpen}
+        onOpenChange={setPublishOpen}
+        spaceId={space.id}
+      />
     </div>
   );
 }

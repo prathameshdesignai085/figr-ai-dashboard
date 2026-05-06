@@ -59,6 +59,21 @@ export function ShellWorkspaceTopBar({ shell }: { shell: Shell }) {
         <span className="shrink-0 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-300/90">
           Shell
         </span>
+        {shell.dsSnapshotRef && (
+          <span className="shrink-0 rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium text-blue-300/90">
+            {shell.dsSnapshotRef.version}
+          </span>
+        )}
+        {shell.quality && (
+          <span className="hidden shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300/90 sm:inline">
+            DS {shell.quality.dsCoverage}%
+          </span>
+        )}
+        {shell.quality && shell.quality.unresolvedMappings > 0 && (
+          <span className="hidden shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300/90 sm:inline">
+            {shell.quality.unresolvedMappings} open mappings
+          </span>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">

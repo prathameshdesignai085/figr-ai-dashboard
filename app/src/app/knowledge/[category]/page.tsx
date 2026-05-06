@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, FileText, Globe, Table2, PenTool, Plus } from "lucide-react";
 import { useKnowledgeStore } from "@/stores/useKnowledgeStore";
 import type { KnowledgeCategory } from "@/types";
+import { DesignSystemCategoryView } from "@/components/knowledge/design-system-category-view";
 
 const categoryLabels: Record<KnowledgeCategory, string> = {
   "about-company": "About Company",
@@ -35,6 +36,10 @@ export default function KnowledgeCategoryPage({
   const catId = category as KnowledgeCategory;
   const label = categoryLabels[catId] || category;
   const items = getItemsByCategory(catId);
+
+  if (catId === "design-system") {
+    return <DesignSystemCategoryView />;
+  }
 
   return (
     <div className="flex h-full flex-col overflow-auto">

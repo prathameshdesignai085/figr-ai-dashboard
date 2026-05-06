@@ -1,9 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, PenTool } from "lucide-react";
 import type { Message } from "@/types";
 import { OutputCard } from "./output-card";
+import { SaveToSpaceButton } from "@/components/handover/save-to-space-button";
+import { useSpaceStore } from "@/stores/useSpaceStore";
+import { ExtractReviewButton } from "./extract-review-button";
+import { ExtractionLoaderView } from "./extraction-loader-view";
+
+function shortenFigmaLink(f: {
+  url: string;
+  fileName?: string;
+  frameName?: string;
+}): string {
+  if (f.fileName && f.frameName) return `${f.fileName} · ${f.frameName}`;
+  if (f.fileName) return f.fileName;
+  try {
+    const u = new URL(f.url);
+    const path = u.pathname.length > 28 ? u.pathname.slice(0, 28) + "…" : u.pathname;
+    return `${u.hostname.replace(/^www\./, "")}${path}`;
+  } catch {
+    return f.url;
+  }
+}
 
 function ScreenshotLightbox({
   src,
@@ -46,17 +66,26 @@ export function ChatMessage({
   const isUser = message.role === "user";
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const screenshots = message.screenshotUrls ?? [];
+  const figmaAttachments = message.figmaAttachments ?? [];
 
   return (
     <div className="py-3">
-      {/* Role label */}
-      <div className="mb-2">
+      {/* Role label + assistant flags */}
+      <div className="mb-2 flex items-center gap-2">
         <span className="text-xs font-medium text-foreground/40">
           {isUser ? "You" : "Figred"}
         </span>
+        {message.mock && !isUser && (
+          <span className="inline-flex h-[18px] items-center rounded bg-amber-500/15 px-1.5 text-[10px] font-medium uppercase tracking-wide text-amber-300/90">
+            Mock
+          </span>
+        )}
+        {message.streaming && !isUser && (
+          <span className="text-[10px] text-foreground/35">describing…</span>
+        )}
       </div>
 
-      {/* Screenshot previews */}
+      {/* Screenshot / image previews */}
       {screenshots.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {screenshots.map((url, i) => (
@@ -77,10 +106,42 @@ export function ChatMessage({
         </div>
       )}
 
-      {/* Text content */}
-      {message.content && (
+      {/* Extraction loader takes the place of free-form content while running. */}
+      {message.extractionProgress ? (
+        <ExtractionLoaderView progress={message.extractionProgress} />
+      ) : (message.content || message.streaming || figmaAttachments.length > 0) ? (
         <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">
+          {figmaAttachments.map((f, i) => (
+            <span key={i}>
+              <a
+                href={f.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={f.url}
+                className="inline-flex max-w-[280px] items-center gap-1.5 align-middle rounded-md bg-primary/10 px-2 py-1 text-[13px] font-medium text-primary no-underline hover:bg-primary/20"
+              >
+                <PenTool size={12} className="shrink-0" />
+                <span className="truncate">{shortenFigmaLink(f)}</span>
+              </a>
+              {(i < figmaAttachments.length - 1 || message.content) && " "}
+            </span>
+          ))}
           {message.content}
+          {message.streaming && (
+            <span className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-foreground/50 align-baseline" />
+          )}
+        </div>
+      ) : null}
+
+      {/* Save-to-Space affordance for completed skill outputs */}
+      {message.skillName && !message.streaming && message.content && (
+        <SaveToSpaceMessageFooter message={message} />
+      )}
+
+      {/* Review-components affordance after /extract-components completes */}
+      {message.extractionId && !message.streaming && (
+        <div className="mt-3">
+          <ExtractReviewButton extractionId={message.extractionId} />
         </div>
       )}
 
@@ -104,6 +165,27 @@ export function ChatMessage({
           onClose={() => setLightboxSrc(null)}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Small footer rendered after a completed skill message — promotes the
+ * streamed markdown to a Space context item via SaveToSpaceButton.
+ */
+function SaveToSpaceMessageFooter({ message }: { message: Message }) {
+  const activeSpaceId = useSpaceStore((s) => s.activeSpaceId);
+  if (!activeSpaceId || !message.skillName) return null;
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      <SaveToSpaceButton
+        chatId={message.chatId}
+        messageId={message.id}
+        spaceId={activeSpaceId}
+        skillId={message.skillName}
+        content={message.content}
+        alreadySaved={!!message.savedAsContextItemId}
+      />
     </div>
   );
 }

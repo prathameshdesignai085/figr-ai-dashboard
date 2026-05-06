@@ -4,19 +4,26 @@ import { useState, useRef, useEffect } from "react";
 import {
   ChatComposer,
   type ComposerContextChip,
+  type FigmaLinkInfo,
+  type ImageAttachmentInfo,
 } from "@/components/chat/chat-composer";
 import { useSpaceStore } from "@/stores/useSpaceStore";
 
 export type ContextChip = ComposerContextChip;
+export type { FigmaLinkInfo, ImageAttachmentInfo };
 
 export function ChatInput({
   onSend,
   contextChips,
   onRemoveContextChip,
+  onAddFigmaLink,
+  onAddImage,
 }: {
   onSend: (message: string) => void;
   contextChips: ContextChip[];
   onRemoveContextChip: (chip: ContextChip) => void;
+  onAddFigmaLink?: (info: FigmaLinkInfo) => void;
+  onAddImage?: (info: ImageAttachmentInfo) => void;
 }) {
   const space = useSpaceStore((s) => s.getActiveSpace());
   const [value, setValue] = useState("");
@@ -75,6 +82,8 @@ export function ChatInput({
         textareaRef={textareaRef}
         contextChips={contextChips}
         onRemoveContextChip={onRemoveContextChip}
+        onAddFigmaLink={onAddFigmaLink}
+        onAddImage={onAddImage}
         onSubmit={handleSubmit}
         canSubmit={!!value.trim()}
         platform={space?.targetPlatform}

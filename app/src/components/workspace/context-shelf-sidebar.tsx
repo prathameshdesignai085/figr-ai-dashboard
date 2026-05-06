@@ -18,6 +18,8 @@ import {
   Upload,
   ClipboardPaste,
   Library,
+  Pin,
+  X,
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import type { Space, Shell, ContextItem, Output, KnowledgeCategory } from "@/types";
@@ -27,6 +29,7 @@ import { useChatStore } from "@/stores/useChatStore";
 import { useSpaceStore } from "@/stores/useSpaceStore";
 import { useShellStore } from "@/stores/useShellStore";
 import { useKnowledgeStore } from "@/stores/useKnowledgeStore";
+import { useHandoverStore } from "@/stores/useHandoverStore";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -173,6 +176,7 @@ export function ContextShelfSidebar({
             selectedIds={selectedOutputIds}
             onToggleSelect={toggleOutputSelection}
             onOpenOutput={handleOpenOutput}
+            spaceId={isSpace ? workspace.id : undefined}
           />
         )}
       </div>
@@ -672,6 +676,77 @@ function ContextView({
         </div>
       ) : null}
 
+      {!isSpace && workspace.sourceRefs ? (
+        <div>
+          <h4 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-foreground/25">
+            Shell Sources
+          </h4>
+          <div className="space-y-2">
+            {workspace.sourceRefs.githubScopeRefs.length > 0 && (
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
+                <p className="mb-1 text-[10px] uppercase tracking-wider text-foreground/30">
+                  GitHub scopes
+                </p>
+                {workspace.sourceRefs.githubScopeRefs.map((scope) => (
+                  <div key={scope.id} className="mb-1 last:mb-0">
+                    <p className="truncate text-xs text-foreground/60">{scope.label}</p>
+                    <p className="truncate text-[10px] text-foreground/30">
+                      {scope.repo}@{scope.branch}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {workspace.sourceRefs.figmaFrameRefs.length > 0 && (
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
+                <p className="mb-1 text-[10px] uppercase tracking-wider text-foreground/30">
+                  Figma frames
+                </p>
+                {workspace.sourceRefs.figmaFrameRefs.map((frame) => (
+                  <div key={frame.id} className="mb-1 last:mb-0">
+                    <p className="truncate text-xs text-foreground/60">{frame.label}</p>
+                    <p className="truncate text-[10px] text-foreground/30">
+                      {frame.role}
+                      {frame.flowTag ? ` • ${frame.flowTag}` : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {!isSpace && workspace.scaffoldPacks && workspace.scaffoldPacks.length > 0 ? (
+        <div>
+          <h4 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-foreground/25">
+            Scaffold Packs
+          </h4>
+          <div className="space-y-1">
+            {workspace.scaffoldPacks.map((pack) => (
+              <div
+                key={pack.id}
+                className={cn(
+                  "rounded-md border px-2 py-1.5",
+                  pack.selected
+                    ? "border-violet-400/30 bg-violet-500/10"
+                    : "border-white/[0.06] bg-white/[0.02]"
+                )}
+              >
+                <p className="truncate text-xs text-foreground/65">{pack.name}</p>
+                <p className="truncate text-[10px] text-foreground/35">{pack.featureTag}</p>
+              </div>
+            ))}
+          </div>
+          {workspace.quality ? (
+            <p className="mt-2 text-[10px] text-foreground/35">
+              DS {workspace.quality.dsCoverage}% • Token {workspace.quality.tokenCompliance}% •{" "}
+              {workspace.quality.unresolvedMappings} open mappings
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {workspace.connectedKnowledge.length > 0 ? (
         <div>
           <h4 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-foreground/25">
@@ -698,32 +773,160 @@ function ShelfView({
   selectedIds,
   onToggleSelect,
   onOpenOutput,
+  spaceId,
 }: {
   outputs: (Output & { chatName: string })[];
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onOpenOutput: (output: Output) => void;
+  spaceId?: string;
 }) {
   const selectedCount = [...selectedIds].filter((id) =>
     outputs.some((o) => o.id === id)
   ).length;
 
-  if (outputs.length === 0) {
-    return (
-      <div className="flex h-32 items-center justify-center">
-        <div className="text-center">
-          <p className="text-xs text-foreground/25">No kept outputs yet</p>
-          <p className="mt-1 text-[10px] text-foreground/15">
-            Click &quot;Keep&quot; on outputs in chat
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="p-2">
-      {/* Header with count */}
+      {spaceId && <CapturedStatesSection spaceId={spaceId} />}
+
+      {outputs.length === 0 ? (
+        <div className="flex h-32 items-center justify-center">
+          <div className="text-center">
+            <p className="text-xs text-foreground/25">No kept outputs yet</p>
+            <p className="mt-1 text-[10px] text-foreground/15">
+              Click &quot;Keep&quot; on outputs in chat
+            </p>
+          </div>
+        </div>
+      ) : (
+        <KeptOutputsBody
+          outputs={outputs}
+          selectedIds={selectedIds}
+          selectedCount={selectedCount}
+          onToggleSelect={onToggleSelect}
+          onOpenOutput={onOpenOutput}
+        />
+      )}
+    </div>
+  );
+}
+
+function CapturedStatesSection({ spaceId }: { spaceId: string }) {
+  const allStates = useHandoverStore((s) => s.capturedStates);
+  const states = useMemo(
+    () => allStates.filter((c) => c.spaceId === spaceId),
+    [allStates, spaceId]
+  );
+  const removeCapturedState = useHandoverStore((s) => s.removeCapturedState);
+  const [seeding, setSeeding] = useState(false);
+  const [seedError, setSeedError] = useState<string | null>(null);
+
+  const handleSeedDemo = async () => {
+    setSeeding(true);
+    setSeedError(null);
+    try {
+      const { seedDemoStatesForSpace } = await import("@/lib/demo-seeder");
+      await seedDemoStatesForSpace(spaceId);
+    } catch (e) {
+      setSeedError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  return (
+    <div className="mb-3 rounded-lg border border-white/[0.06] bg-white/[0.015] p-2">
+      <div className="mb-2 flex items-center justify-between px-1">
+        <div className="flex items-center gap-1.5">
+          <Pin size={11} className="text-primary" />
+          <span className="text-[10px] font-medium uppercase tracking-wider text-foreground/55">
+            States to publish
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {states.length > 0 && (
+            <span className="text-[10px] text-foreground/30">
+              {states.length}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleSeedDemo}
+            disabled={seeding}
+            className="rounded bg-white/[0.05] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-foreground/55 hover:bg-white/[0.1] hover:text-foreground/85 disabled:opacity-50"
+            title="Add 6 polished demo screens for the Checkout flow"
+          >
+            {seeding ? "Seeding…" : "+ Demo set"}
+          </button>
+        </div>
+      </div>
+      {seedError && (
+        <p className="mb-1 px-1 text-[10px] text-red-400">
+          Failed: {seedError}
+        </p>
+      )}
+      {states.length === 0 ? (
+        <p className="px-1 py-1.5 text-[10px] leading-snug text-foreground/30">
+          Hit <span className="font-medium text-foreground/50">+ Demo set</span>{" "}
+          to load 6 polished demo screens, or open a prototype output and tap{" "}
+          <Pin size={9} className="inline-block -mt-px text-primary/70" /> to
+          capture your own.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {states.map((state) => (
+            <li
+              key={state.id}
+              className="group flex items-center gap-2 rounded-md p-1 hover:bg-white/[0.04]"
+            >
+              <span className="h-9 w-12 shrink-0 overflow-hidden rounded border border-white/[0.06] bg-black/30">
+                {state.dataUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={state.dataUrl}
+                    alt={state.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <Pin size={10} className="text-foreground/20" />
+                  </div>
+                )}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[11px] text-foreground/75">
+                {state.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeCapturedState(state.id)}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-foreground/30 opacity-0 transition-opacity hover:bg-white/[0.08] hover:text-foreground/70 group-hover:opacity-100"
+                aria-label={`Remove ${state.name}`}
+              >
+                <X size={10} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function KeptOutputsBody({
+  outputs,
+  selectedIds,
+  selectedCount,
+  onToggleSelect,
+  onOpenOutput,
+}: {
+  outputs: (Output & { chatName: string })[];
+  selectedIds: Set<string>;
+  selectedCount: number;
+  onToggleSelect: (id: string) => void;
+  onOpenOutput: (output: Output) => void;
+}) {
+  return (
+    <div>
       <div className="flex items-center justify-between px-2 py-1.5 mb-1">
         <span className="text-[10px] font-medium uppercase tracking-wider text-foreground/25">
           {outputs.length} kept

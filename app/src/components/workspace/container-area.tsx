@@ -12,6 +12,7 @@ import { OutputHtmlPreview } from "./output-html-preview";
 import { DesignEditorPanel } from "./design-editor/design-editor-panel";
 import { ShellAppPreviewPanel } from "./shell-app-preview-panel";
 import { OnDevicePanel } from "./on-device-panel";
+import { ExtractComponentsPanel } from "./extract-components-panel";
 import { motion, AnimatePresence } from "framer-motion";
 
 function isLikelyHtml(content: string): boolean {
@@ -53,6 +54,9 @@ export function ContainerArea({ workspace }: { workspace: Space | Shell }) {
     if (activeTab.type === "on-device") {
       return <OnDevicePanel />;
     }
+    if (activeTab.type === "component-extract" && activeTab.extractionId) {
+      return <ExtractComponentsPanel extractionId={activeTab.extractionId} />;
+    }
     if (activeTab.type === "preview" && activeTab.buildProjectId) {
       return <BuildPreviewPanel buildProjectId={activeTab.buildProjectId} />;
     }
@@ -66,7 +70,14 @@ export function ContainerArea({ workspace }: { workspace: Space | Shell }) {
       return <DesignEditorPanel tab={activeTab} />;
     }
     if (activeTab.type === "output" && isLikelyHtml(activeTab.content)) {
-      return <OutputHtmlPreview html={activeTab.content} />;
+      return (
+        <OutputHtmlPreview
+          html={activeTab.content}
+          spaceId={isSpace ? workspace.id : undefined}
+          outputTitle={activeTab.title}
+          outputId={activeTab.outputId}
+        />
+      );
     }
     return <DocumentPreview tab={activeTab} />;
   };

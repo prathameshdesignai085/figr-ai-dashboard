@@ -1,15 +1,53 @@
 "use client";
 
+import { useRef } from "react";
+import { CaptureStateButton } from "./capture-state-button";
+
 /** Read-only HTML preview for output tabs (non-built screen content). */
-export function OutputHtmlPreview({ html }: { html: string }) {
-  const srcDoc = html.trim().startsWith("<") ? html : `<!DOCTYPE html><html><body><pre>${escapeHtml(html)}</pre></body></html>`;
+export function OutputHtmlPreview({
+  html,
+  spaceId,
+  outputTitle,
+  outputId,
+}: {
+  html: string;
+  /** When set, the Capture-state button shows so the designer can stash this view for handover. */
+  spaceId?: string;
+  outputTitle?: string;
+  outputId?: string;
+}) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const srcDoc = html.trim().startsWith("<")
+    ? html
+    : `<!DOCTYPE html><html><body><pre>${escapeHtml(html)}</pre></body></html>`;
   return (
-    <div className="flex h-full flex-col bg-white/[0.01]">
+    <div className="relative flex h-full flex-col bg-white/[0.01]">
       <div className="flex flex-1 items-start justify-center overflow-auto p-4">
-        <div className="h-full min-h-[400px] w-full max-w-4xl rounded-lg border border-white/[0.06] bg-white shadow-sm overflow-hidden">
-          <iframe title="Output preview" className="h-full min-h-[400px] w-full" sandbox="allow-scripts" srcDoc={srcDoc} />
+        <div
+          ref={wrapperRef}
+          className="h-full min-h-[400px] w-full max-w-4xl rounded-lg border border-white/[0.06] bg-white shadow-sm overflow-hidden"
+        >
+          <iframe
+            title="Output preview"
+            className="h-full min-h-[400px] w-full"
+            sandbox="allow-scripts"
+            srcDoc={srcDoc}
+          />
         </div>
       </div>
+      {spaceId && (
+        <div className="pointer-events-none absolute right-5 top-5 z-10">
+          <div className="pointer-events-auto">
+            <CaptureStateButton
+              targetRef={wrapperRef}
+              spaceId={spaceId}
+              sourceKind="output"
+              sourceOutputId={outputId}
+              defaultName={outputTitle ?? "Captured state"}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

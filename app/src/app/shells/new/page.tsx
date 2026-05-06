@@ -1,18 +1,36 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Upload } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  ExternalLink,
+  GitBranch,
+  PenTool,
+  Plus,
+  X,
+} from "lucide-react";
 import { useShellStore } from "@/stores/useShellStore";
 import { useChatStore } from "@/stores/useChatStore";
+import { useDesignSystemStore } from "@/stores/useDesignSystemStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import type {
+  ShellFigmaFrameRef,
+  ShellMappingReviewItem,
+  ShellScaffoldPack,
+} from "@/types";
 
 const STEP_LABELS = [
   "Tech stack",
-  "Design system",
-  "Tokens & layout",
+  "Sources",
+  "DS binding",
+  "Scaffolds",
+  "Tokens & publish",
 ] as const;
 
 const STACK_CHIPS = [
@@ -35,10 +53,74 @@ function joinStackParts(parts: string[]): string {
   return parts.join(", ");
 }
 
+function parseFigmaUrl(url: string) {
+  const clean = url.trim();
+  if (!clean) return null;
+  if (!clean.includes("figma.com")) return null;
+
+  let fileKey: string | undefined;
+  let nodeId: string | undefined;
+  try {
+    const parsed = new URL(clean);
+    const segs = parsed.pathname.split("/").filter(Boolean);
+    const fileIndex = segs.findIndex((entry) => entry === "file");
+    if (fileIndex >= 0 && segs[fileIndex + 1]) fileKey = segs[fileIndex + 1];
+    nodeId = parsed.searchParams.get("node-id") ?? undefined;
+  } catch {
+    // fallback extraction for partial urls
+    const fileMatch = clean.match(/\/file\/([^/?#]+)/);
+    const nodeMatch = clean.match(/node-id=([^&#]+)/);
+    fileKey = fileMatch?.[1];
+    nodeId = nodeMatch?.[1];
+  }
+  if (!fileKey) return null;
+  return { fileKey, nodeId };
+}
+
+function deriveScaffoldPacks(frames: ShellFigmaFrameRef[], componentIds: string[]) {
+  if (frames.length === 0) return [];
+  const byFlow = new Map<string, ShellFigmaFrameRef[]>();
+  for (const frame of frames) {
+    const key = frame.flowTag || "general";
+    byFlow.set(key, [...(byFlow.get(key) ?? []), frame]);
+  }
+  const packs: ShellScaffoldPack[] = [];
+  for (const [flow, flowFrames] of byFlow.entries()) {
+    packs.push({
+      id: `pack-${flow.replace(/[^a-z0-9]/gi, "-").toLowerCase()}`,
+      name:
+        flow === "general"
+          ? "General starter"
+          : `${flow.charAt(0).toUpperCase()}${flow.slice(1)} starter`,
+      description: `Generated from ${flowFrames.length} Figma frame(s).`,
+      featureTag: flow,
+      sourceFrameIds: flowFrames.map((frame) => frame.id),
+      recommendedComponentIds: componentIds.slice(0, 5),
+      selected: packs.length === 0,
+    });
+  }
+  return packs;
+}
+
+function deriveMappingReviewItems(frames: ShellFigmaFrameRef[], componentNames: string[]) {
+  return frames.map((frame, index): ShellMappingReviewItem => ({
+    id: `map-${frame.id}`,
+    frameRefId: frame.id,
+    figmaName: frame.frameName || frame.label,
+    componentName: componentNames[index % Math.max(componentNames.length, 1)] ?? null,
+    confidence: Number((0.62 + (index % 3) * 0.13).toFixed(2)),
+    status: index % 4 === 0 ? "open" : "resolved",
+    resolution: index % 4 === 0 ? undefined : "accept",
+  }));
+}
+
 export default function NewShellPage() {
   const router = useRouter();
   const createShell = useShellStore((s) => s.createShell);
   const createShellChat = useChatStore((s) => s.createShellChat);
+  const dsSnapshots = useDesignSystemStore((s) => s.snapshots);
+  const activeSnapshot = useDesignSystemStore((s) => s.getActiveSnapshot());
+  const dsConnections = useDesignSystemStore((s) => s.connections);
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -46,13 +128,30 @@ export default function NewShellPage() {
   const [techStack, setTechStack] = useState("");
   const [packageManager, setPackageManager] = useState("");
   const [appRouterNote, setAppRouterNote] = useState("");
-  const [designFileLabel, setDesignFileLabel] = useState("");
   const [designSystemNote, setDesignSystemNote] = useState("");
   const [tokenPreferences, setTokenPreferences] = useState("");
+  const [githubRepo, setGithubRepo] = useState("acme/monorepo");
+  const [githubBranch, setGithubBranch] = useState("main");
+  const [githubPaths, setGithubPaths] = useState("apps/web, packages/ui, packages/tokens");
+  const [githubPackages, setGithubPackages] = useState("@acme/ui, @acme/tokens");
+  const [figmaLinkInput, setFigmaLinkInput] = useState("");
+  const [figmaLabelInput, setFigmaLabelInput] = useState("");
+  const [figmaFlowTagInput, setFigmaFlowTagInput] = useState("general");
+  const [figmaRoleInput, setFigmaRoleInput] = useState<"reference" | "scaffold" | "component-source">("scaffold");
+  const [figmaFrames, setFigmaFrames] = useState<ShellFigmaFrameRef[]>([]);
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
+  const [allowGenericFallback, setAllowGenericFallback] = useState(true);
+  const [scaffoldPacks, setScaffoldPacks] = useState<ShellScaffoldPack[]>([]);
+  const [mappingReviewItems, setMappingReviewItems] = useState<ShellMappingReviewItem[]>([]);
 
   const canAdvanceFromStep0 = name.trim().length > 0;
+  const selectedSnapshot = useMemo(
+    () => dsSnapshots.find((snapshot) => snapshot.id === selectedSnapshotId),
+    [dsSnapshots, selectedSnapshotId]
+  );
+  const connectedDs = dsConnections.github.status === "connected" || dsConnections.figma.status === "connected";
 
-  const toggleChip = useCallback((label: string) => {
+  const toggleChip = (label: string) => {
     const parts = splitStackParts(techStack);
     const lower = label.toLowerCase();
     const idx = parts.findIndex((p) => p.toLowerCase() === lower);
@@ -62,29 +161,165 @@ export default function NewShellPage() {
       parts.push(label);
     }
     setTechStack(joinStackParts(parts));
-  }, [techStack]);
+  };
 
-  const chipActive = useCallback(
-    (label: string) =>
-      splitStackParts(techStack).some(
-        (p) => p.toLowerCase() === label.toLowerCase()
-      ),
-    [techStack]
-  );
+  const chipActive = (label: string) =>
+    splitStackParts(techStack).some((p) => p.toLowerCase() === label.toLowerCase());
+
+  const canAdvanceByStep = useMemo(() => {
+    if (step === 0) return canAdvanceFromStep0;
+    if (step === 1) return githubRepo.trim().length > 0 || figmaFrames.length > 0;
+    if (step === 2) return !!selectedSnapshot || allowGenericFallback;
+    if (step === 3) {
+      // Mock-first rule: mapping/scaffold review is informative, not blocking.
+      // If packs exist, require at least one selection; if none exist, allow proceeding.
+      return (
+        scaffoldPacks.length === 0 ||
+        scaffoldPacks.some((pack) => pack.selected)
+      );
+    }
+    return true;
+  }, [
+    allowGenericFallback,
+    canAdvanceFromStep0,
+    figmaFrames.length,
+    githubRepo,
+    scaffoldPacks,
+    selectedSnapshot,
+    step,
+  ]);
+
+  const addFigmaFrame = () => {
+    const parsed = parseFigmaUrl(figmaLinkInput);
+    if (!parsed) return;
+    const id = `frame-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const label = figmaLabelInput.trim() || `Frame ${figmaFrames.length + 1}`;
+    const frame: ShellFigmaFrameRef = {
+      id,
+      label,
+      url: figmaLinkInput.trim(),
+      fileKey: parsed.fileKey,
+      nodeId: parsed.nodeId,
+      fileName: parsed.fileKey,
+      frameName: label,
+      role: figmaRoleInput,
+      flowTag: figmaFlowTagInput.trim() || "general",
+    };
+    const nextFrames = [...figmaFrames, frame];
+    setFigmaFrames(nextFrames);
+    setFigmaLinkInput("");
+    setFigmaLabelInput("");
+
+    if (selectedSnapshot) {
+      const packs = deriveScaffoldPacks(
+        nextFrames,
+        selectedSnapshot.components.map((component) => component.id)
+      );
+      const mappings = deriveMappingReviewItems(
+        nextFrames,
+        selectedSnapshot.components.map((component) => component.name)
+      );
+      setScaffoldPacks(packs);
+      setMappingReviewItems(mappings);
+    }
+  };
+
+  const bindSnapshot = (snapshotId: string) => {
+    setSelectedSnapshotId(snapshotId);
+    const snapshot = dsSnapshots.find((item) => item.id === snapshotId);
+    if (!snapshot) return;
+    setScaffoldPacks(
+      deriveScaffoldPacks(
+        figmaFrames,
+        snapshot.components.map((component) => component.id)
+      )
+    );
+    setMappingReviewItems(
+      deriveMappingReviewItems(
+        figmaFrames,
+        snapshot.components.map((component) => component.name)
+      )
+    );
+  };
 
   const finish = () => {
-    const fileHint = designFileLabel.trim()
-      ? `Attached (stub): ${designFileLabel.trim()}`
-      : "";
-    const combinedDesign = [fileHint, designSystemNote.trim()]
+    const selectedPacks = scaffoldPacks.filter((pack) => pack.selected);
+    const unresolvedMappings = mappingReviewItems.filter(
+      (item) => item.status === "open"
+    ).length;
+    const totalMappings = mappingReviewItems.length || 1;
+    const resolvedMappings = totalMappings - unresolvedMappings;
+    const dsCoverage = Math.round((resolvedMappings / totalMappings) * 100);
+    const tokenCompliance = selectedSnapshot ? 92 : allowGenericFallback ? 70 : 0;
+
+    const combinedDesign = [
+      designSystemNote.trim(),
+      figmaFrames.length > 0
+        ? `Figma source frames: ${figmaFrames.map((frame) => frame.label).join(", ")}`
+        : "",
+    ]
       .filter(Boolean)
       .join("\n\n");
+
     const shell = createShell({
       name: name.trim(),
       description: description.trim(),
       techStack: techStack.trim(),
       designSystemNote: combinedDesign,
       tokenPreferences: tokenPreferences.trim(),
+      sourceRefs: {
+        githubScopeRefs: githubRepo.trim()
+          ? [
+              {
+                id: "gh-scope-primary",
+                label: "Primary code scope",
+                repo: githubRepo.trim(),
+                branch: githubBranch.trim() || "main",
+                paths: splitStackParts(githubPaths),
+                packages: splitStackParts(githubPackages),
+              },
+            ]
+          : [],
+        figmaFrameRefs: figmaFrames,
+      },
+      dsSnapshotRef: selectedSnapshot
+        ? {
+            snapshotId: selectedSnapshot.id,
+            name: selectedSnapshot.name,
+            version: selectedSnapshot.version,
+          }
+        : undefined,
+      scaffoldPacks: selectedPacks.length > 0 ? selectedPacks : scaffoldPacks,
+      mappingReviewItems,
+      dsUsageSummary: {
+        snapshotId: selectedSnapshot?.id,
+        componentIds: selectedSnapshot
+          ? [...new Set(selectedPacks.flatMap((pack) => pack.recommendedComponentIds))]
+          : [],
+        componentNames: selectedSnapshot
+          ? selectedSnapshot.components
+              .filter((component) =>
+                selectedPacks
+                  .flatMap((pack) => pack.recommendedComponentIds)
+                  .includes(component.id)
+              )
+              .map((component) => component.name)
+          : [],
+        notes: selectedSnapshot
+          ? "Bound to Design System snapshot for shell generation."
+          : "Generic fallback mode enabled (no snapshot bound).",
+      },
+      quality: {
+        dsCoverage,
+        tokenCompliance,
+        unresolvedMappings,
+        warnings: [
+          ...(selectedSnapshot ? [] : ["No DS snapshot selected; fallback mode used."]),
+          ...(unresolvedMappings > 0
+            ? [`${unresolvedMappings} mapping review item(s) still open.`]
+            : []),
+        ],
+      },
       packageManager: packageManager.trim() || undefined,
       appRouterNote: appRouterNote.trim() || undefined,
     });
@@ -119,8 +354,10 @@ export default function NewShellPage() {
 
         <h1 className="text-xl font-semibold text-foreground">
           {step === 0 && "Stack & identity"}
-          {step === 1 && "Design system"}
-          {step === 2 && "Tokens & layout"}
+          {step === 1 && "Sources"}
+          {step === 2 && "Design system binding"}
+          {step === 3 && "Scaffold packs & mapping review"}
+          {step === 4 && "Tokens & publish"}
         </h1>
         <p className="mt-1 text-sm text-foreground/40">
           Step {step + 1} of {STEP_LABELS.length}
@@ -238,52 +475,118 @@ export default function NewShellPage() {
           {step === 1 && (
             <>
               <p className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-xs leading-relaxed text-foreground/50">
-                Design-system context{" "}
-                <span className="text-foreground/70">grounds the AI</span> when
-                suggesting components, tokens, and layouts. Linking Figma or notes
-                here reduces hallucinated patterns later.
+                Add source references. These are the artifacts the shell agent uses
+                to generate scaffold packs and map components.
               </p>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground/45">
-                  Design file (stub)
-                </label>
-                <div className="flex items-center gap-2">
-                  <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-white/[0.12] bg-white/[0.02] px-3 py-2.5 text-xs text-foreground/50 transition-colors hover:border-white/[0.2] hover:bg-white/[0.04]">
-                    <Upload className="size-3.5 shrink-0" aria-hidden />
-                    <span>Choose file</span>
-                    <input
-                      type="file"
-                      className="sr-only"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        setDesignFileLabel(f?.name ?? "");
-                      }}
-                    />
-                  </label>
-                  {designFileLabel ? (
-                    <span className="truncate text-xs text-foreground/45">
-                      {designFileLabel}
-                    </span>
-                  ) : null}
+                <label className="text-xs font-medium text-foreground/45">GitHub scope</label>
+                <Input
+                  value={githubRepo}
+                  onChange={(event) => setGithubRepo(event.target.value)}
+                  placeholder="repo, e.g. acme/monorepo"
+                  className="bg-white/[0.03]"
+                />
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input
+                    value={githubBranch}
+                    onChange={(event) => setGithubBranch(event.target.value)}
+                    placeholder="branch"
+                    className="bg-white/[0.03]"
+                  />
+                  <Input
+                    value={githubPackages}
+                    onChange={(event) => setGithubPackages(event.target.value)}
+                    placeholder="packages, comma separated"
+                    className="bg-white/[0.03]"
+                  />
                 </div>
-                <p className="text-[10px] text-foreground/25">
-                  Filename is stored locally for this session (no upload yet).
-                </p>
+                <Input
+                  value={githubPaths}
+                  onChange={(event) => setGithubPaths(event.target.value)}
+                  placeholder="paths, comma separated"
+                  className="bg-white/[0.03]"
+                />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground/45">
-                  Notes
-                </label>
-                <textarea
-                  value={designSystemNote}
-                  onChange={(e) => setDesignSystemNote(e.target.value)}
-                  placeholder="Figma library, tokens repo, brand rules, component naming…"
-                  rows={4}
-                  className={cn(
-                    "w-full resize-y rounded-lg border border-input bg-white/[0.03] px-3 py-2.5 text-sm text-foreground outline-none",
-                    "placeholder:text-foreground/25 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
-                  )}
+                <label className="text-xs font-medium text-foreground/45">Figma frames / screens</label>
+                <Input
+                  value={figmaLinkInput}
+                  onChange={(event) => setFigmaLinkInput(event.target.value)}
+                  placeholder="Paste Figma frame URL with node-id"
+                  className="bg-white/[0.03]"
                 />
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <Input
+                    value={figmaLabelInput}
+                    onChange={(event) => setFigmaLabelInput(event.target.value)}
+                    placeholder="label"
+                    className="bg-white/[0.03]"
+                  />
+                  <Input
+                    value={figmaFlowTagInput}
+                    onChange={(event) => setFigmaFlowTagInput(event.target.value)}
+                    placeholder="flow tag"
+                    className="bg-white/[0.03]"
+                  />
+                  <select
+                    value={figmaRoleInput}
+                    onChange={(event) =>
+                      setFigmaRoleInput(
+                        event.target.value as "reference" | "scaffold" | "component-source"
+                      )
+                    }
+                    className="h-8 w-full rounded-lg border border-input bg-white/[0.03] px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                  >
+                    <option value="scaffold">scaffold</option>
+                    <option value="reference">reference</option>
+                    <option value="component-source">component-source</option>
+                  </select>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addFigmaFrame}
+                  disabled={!parseFigmaUrl(figmaLinkInput)}
+                >
+                  <Plus className="size-3.5" />
+                  Add frame link
+                </Button>
+                {figmaFrames.length > 0 && (
+                  <div className="space-y-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] p-2">
+                    {figmaFrames.map((frame) => (
+                      <div
+                        key={frame.id}
+                        className="flex items-center gap-2 rounded-md border border-white/[0.06] bg-black/10 px-2 py-1.5"
+                      >
+                        <PenTool className="size-3.5 shrink-0 text-foreground/50" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs text-foreground/80">{frame.label}</p>
+                          <p className="truncate text-[10px] text-foreground/35">
+                            {frame.flowTag || "general"} • {frame.role}
+                          </p>
+                        </div>
+                        <a
+                          href={frame.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-foreground/40 hover:text-foreground/65"
+                        >
+                          <ExternalLink className="size-3.5" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFigmaFrames((prev) => prev.filter((entry) => entry.id !== frame.id))
+                          }
+                          className="text-foreground/35 hover:text-foreground/65"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -291,24 +594,235 @@ export default function NewShellPage() {
           {step === 2 && (
             <>
               <p className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-xs leading-relaxed text-foreground/50">
-                Token and layout rules act as{" "}
-                <span className="text-foreground/70">hard constraints</span> for
-                generated UI and for the assistant when comparing options.
+                Bind the shell to a Design System snapshot so generated scaffolds use
+                real DS components.
               </p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/45">Snapshot</label>
+                <select
+                  value={selectedSnapshotId}
+                  onChange={(event) => bindSnapshot(event.target.value)}
+                  className="h-9 w-full rounded-lg border border-input bg-white/[0.03] px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                >
+                  <option value="">Select snapshot</option>
+                  {dsSnapshots.map((snapshot) => (
+                    <option key={snapshot.id} value={snapshot.id}>
+                      {snapshot.name} {snapshot.version}
+                    </option>
+                  ))}
+                </select>
+                {activeSnapshot && (
+                  <p className="text-[11px] text-foreground/40">
+                    Active snapshot: {activeSnapshot.name} {activeSnapshot.version}
+                  </p>
+                )}
+                <label className="mt-2 flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={allowGenericFallback}
+                    onChange={(event) => setAllowGenericFallback(event.target.checked)}
+                    className="size-3.5 rounded border-white/25 bg-transparent"
+                  />
+                  <span className="text-xs text-foreground/65">
+                    Allow generic fallback when no snapshot selected
+                  </span>
+                </label>
+                {!connectedDs && (
+                  <p className="inline-flex items-center gap-1 text-[11px] text-amber-300">
+                    <CircleAlert className="size-3.5" />
+                    GitHub/Figma are not connected in Integrations.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <p className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-xs leading-relaxed text-foreground/50">
+                Select scaffold packs and resolve frame-to-component mappings before publish.
+              </p>
+              <div className="space-y-2">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-foreground/40">
+                  Scaffold packs
+                </h3>
+                {scaffoldPacks.length === 0 ? (
+                  <p className="text-xs text-foreground/35">
+                    Add Figma frame links and bind a DS snapshot to generate packs.
+                  </p>
+                ) : (
+                  scaffoldPacks.map((pack) => (
+                    <label
+                      key={pack.id}
+                      className="flex cursor-pointer items-start gap-2 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2.5"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={pack.selected}
+                        onChange={(event) =>
+                          setScaffoldPacks((prev) =>
+                            prev.map((entry) =>
+                              entry.id === pack.id
+                                ? { ...entry, selected: event.target.checked }
+                                : entry
+                            )
+                          )
+                        }
+                        className="mt-0.5 size-3.5 rounded border-white/25 bg-transparent"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-foreground/80">{pack.name}</p>
+                        <p className="text-xs text-foreground/40">{pack.description}</p>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-foreground/40">
+                  Mapping review
+                </h3>
+                {mappingReviewItems.length === 0 ? (
+                  <p className="text-xs text-foreground/35">No mapping items yet.</p>
+                ) : (
+                  mappingReviewItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-foreground/75">{item.figmaName}</p>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[10px] uppercase",
+                            item.status === "resolved"
+                              ? "bg-emerald-500/15 text-emerald-300"
+                              : item.status === "deferred"
+                                ? "bg-amber-500/15 text-amber-300"
+                                : "bg-rose-500/15 text-rose-300"
+                          )}
+                        >
+                          {item.status}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-foreground/45">
+                        {Math.round(item.confidence * 100)}% •{" "}
+                        {item.componentName ?? "No component mapped"}
+                      </p>
+                      <div className="mt-2 flex gap-1.5">
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          onClick={() =>
+                            setMappingReviewItems((prev) =>
+                              prev.map((entry) =>
+                                entry.id === item.id
+                                  ? { ...entry, status: "resolved", resolution: "accept" }
+                                  : entry
+                              )
+                            )
+                          }
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          onClick={() =>
+                            setMappingReviewItems((prev) =>
+                              prev.map((entry) =>
+                                entry.id === item.id
+                                  ? {
+                                      ...entry,
+                                      status: "resolved",
+                                      componentName: "Card",
+                                      resolution: "remap",
+                                    }
+                                  : entry
+                              )
+                            )
+                          }
+                        >
+                          Remap
+                        </Button>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          onClick={() =>
+                            setMappingReviewItems((prev) =>
+                              prev.map((entry) =>
+                                entry.id === item.id
+                                  ? { ...entry, status: "deferred", resolution: "defer" }
+                                  : entry
+                              )
+                            )
+                          }
+                        >
+                          Defer
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+
+          {step === 4 && (
+            <>
+              <p className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-xs leading-relaxed text-foreground/50">
+                Final constraints and quality summary before publish.
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/45">
+                  Design system notes
+                </label>
+                <textarea
+                  value={designSystemNote}
+                  onChange={(event) => setDesignSystemNote(event.target.value)}
+                  placeholder="Any shell-specific DS guidance for the agent..."
+                  rows={3}
+                  className={cn(
+                    "w-full resize-y rounded-lg border border-input bg-white/[0.03] px-3 py-2.5 text-sm text-foreground outline-none",
+                    "placeholder:text-foreground/25 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                  )}
+                />
+              </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground/45">
                   Token & layout preferences
                 </label>
                 <textarea
                   value={tokenPreferences}
-                  onChange={(e) => setTokenPreferences(e.target.value)}
+                  onChange={(event) => setTokenPreferences(event.target.value)}
                   placeholder="Radius, spacing scale, typography roles, grid, density…"
-                  rows={5}
+                  rows={4}
                   className={cn(
                     "w-full resize-y rounded-lg border border-input bg-white/[0.03] px-3 py-2.5 text-sm text-foreground outline-none",
                     "placeholder:text-foreground/25 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
                   )}
                 />
+              </div>
+              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 text-xs text-foreground/55">
+                <p>
+                  Selected packs:{" "}
+                  {scaffoldPacks.filter((pack) => pack.selected).length}
+                </p>
+                <p className="mt-1">
+                  Open mappings:{" "}
+                  {mappingReviewItems.filter((item) => item.status === "open").length}
+                </p>
+                <p className="mt-1">
+                  Bound snapshot:{" "}
+                  {selectedSnapshot
+                    ? `${selectedSnapshot.name} ${selectedSnapshot.version}`
+                    : allowGenericFallback
+                      ? "Generic fallback"
+                      : "None"}
+                </p>
               </div>
             </>
           )}
@@ -327,7 +841,7 @@ export default function NewShellPage() {
           {step < STEP_LABELS.length - 1 ? (
             <Button
               type="button"
-              disabled={!canAdvanceFromStep0}
+              disabled={!canAdvanceByStep}
               onClick={() => setStep((s) => s + 1)}
               className="gap-1"
             >
@@ -335,7 +849,8 @@ export default function NewShellPage() {
               <ChevronRight className="size-4" aria-hidden />
             </Button>
           ) : (
-            <Button type="button" onClick={finish} className="gap-1">
+            <Button type="button" onClick={finish} className="gap-1" disabled={!canAdvanceByStep}>
+              <Check className="size-4" />
               Finish
               <ChevronRight className="size-4" aria-hidden />
             </Button>
