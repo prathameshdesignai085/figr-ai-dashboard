@@ -218,7 +218,7 @@ export const aboutSections: AboutSection[] = [
           browser shape with a green "Live" pulse — the actual app, embedded in the canvas.
         </P>
         <Callout>
-          <B>The brainstorm → explore → ideate → prototype bridge.</B> A PM or designer
+          <B>The brainstorm → explore → ideate → prototype → handoff bridge.</B> A PM or designer
           doesn't need to commit to fidelity up front. They ask for three approaches, get
           three rough HTML mocks on the canvas, dismiss two, ask the AI to "build this
           one out," and that single card upgrades into a full multi-file project — same
@@ -309,8 +309,54 @@ export const aboutSections: AboutSection[] = [
     cta: { label: "Open Shells", href: "/shells" },
   },
   {
-    id: "integrations",
+    id: "handoff",
     number: "08",
+    eyebrow: "The loop closes here",
+    title: "Handoff & dev bundle",
+    body: (
+      <div className="space-y-3.5">
+        <P>
+          Once a Space has the prototype, the components, and the docs, pressing{" "}
+          <B>Publish handover</B> mints a single public URL that contains all of it:
+          captured prototype states as frames, the PRDs and decisions, the extracted
+          components, a <B>copy-for-AI digest</B> at the top, and — with the Figma
+          plugin paired — a Section laid out directly in the dev's open Figma file.
+        </P>
+        <P>
+          Around the bundle sit the behaviours the old handoff stack didn't have:{" "}
+          <B>inline comments</B> anchored to each section so questions stop dying in
+          Slack, a <B>version supersede chain</B> so a dev landing on v1 always sees
+          that v3 exists, and a <B>Connect to coding agent</B> panel that exposes
+          the same context as an MCP endpoint and CLI snippet — so a Claude Code or
+          Cursor session ingests the whole thing in one shot instead of being walked
+          through five tabs.
+        </P>
+        <Callout>
+          <B>The Figma leg — ideal approach.</B> The designer marks the prototype
+          states that matter for handoff. The plugin pulls those states out,{" "}
+          <Em>nuances intact</Em> — variants, empty/loading/error, the small
+          differences between two near-duplicate states — and auto-lays them as a
+          clean Section in the dev's open Figma file. One click. The dev's Figma MCP
+          then reads current material instead of a file from three iterations ago.
+        </Callout>
+        <P>
+          The slash skills (<B>/prd</B>, <B>/user-flow</B>, <B>/states</B>,{" "}
+          <B>/edge-cases-check</B>, <B>/check-design-system-compliance</B>) and{" "}
+          <B>Extract Components → Raise PR</B> are the two sides of how the bundle
+          gets populated: the docs that go into it, and the reusable components that
+          come out of it as a reviewable PR-shaped artifact.
+        </P>
+        <P>
+          The principle: handoff isn't a deliverable handed across a wall — it's a
+          living bundle, addressed at once to the human reading it and the AI agent
+          the human now codes through.
+        </P>
+      </div>
+    ),
+  },
+  {
+    id: "integrations",
+    number: "09",
     eyebrow: "State of the world",
     title: "Integrations & Settings",
     body: (
@@ -332,7 +378,7 @@ export const aboutSections: AboutSection[] = [
   },
   {
     id: "design",
-    number: "09",
+    number: "10",
     eyebrow: "Quiet UI, loud outputs",
     title: "Design language & live editing",
     body: (
@@ -360,7 +406,7 @@ export const aboutSections: AboutSection[] = [
   },
   {
     id: "mobile",
-    number: "10",
+    number: "11",
     eyebrow: "First-class, not responsive afterthought",
     title: "Mobile-first direction",
     body: (
@@ -410,8 +456,8 @@ export const aboutSections: AboutSection[] = [
   },
   {
     id: "demo",
-    number: "11",
-    eyebrow: "The whole product in six clicks",
+    number: "12",
+    eyebrow: "The whole product in seven clicks",
     title: "Demo script",
     body: (
       <div className="space-y-3.5">
@@ -445,6 +491,12 @@ export const aboutSections: AboutSection[] = [
               <B>Open a mobile Space</B> → On Device tab → show the Snack runner + Share
               QR.
             </>,
+            <>
+              <B>Press &ldquo;Publish handover&rdquo;</B> on a Space → open the public
+              link in a new tab → show the copy-for-AI digest, inline comments anchored
+              to sections, the version dropdown, and the <B>Connect to coding agent</B>{" "}
+              panel.
+            </>,
           ].map((step, i) => (
             <li key={i} className="flex gap-2.5">
               <span className="shrink-0 rounded-full border border-white/[0.10] bg-white/[0.03] px-2 py-0.5 text-[10.5px] font-medium text-foreground/55">
@@ -454,7 +506,7 @@ export const aboutSections: AboutSection[] = [
             </li>
           ))}
         </ol>
-        <P className="text-foreground/55">That's the whole product in six clicks.</P>
+        <P className="text-foreground/55">That's the whole product in seven clicks.</P>
       </div>
     ),
   },
