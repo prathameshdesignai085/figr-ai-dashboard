@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   PenTool,
@@ -53,6 +53,14 @@ const integrations = [
 ];
 
 export default function IntegrationsPage() {
+  return (
+    <Suspense fallback={null}>
+      <IntegrationsPageInner />
+    </Suspense>
+  );
+}
+
+function IntegrationsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const timersRef = useRef<number[]>([]);

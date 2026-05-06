@@ -541,7 +541,7 @@ export const useDesignSystemStore = create<DesignSystemState>((set, get) => ({
       const resolvedAt = new Date().toISOString();
       const reviewItems = state.reviewItems.map((entry) =>
         entry.id === reviewItemId
-          ? { ...entry, status: "resolved", resolution, resolvedAt }
+          ? { ...entry, status: "resolved" as const, resolution, resolvedAt }
           : entry
       );
 
@@ -554,21 +554,21 @@ export const useDesignSystemStore = create<DesignSystemState>((set, get) => ({
             if (resolution === "accept") {
               return {
                 ...mapping,
-                status: "matched",
+                status: "matched" as const,
                 resolvedAt,
               };
             }
             if (resolution === "remap") {
               return {
                 ...mapping,
-                status: "matched",
+                status: "matched" as const,
                 codeComponent: remappedComponent ?? mapping.codeComponent,
                 resolvedAt,
               };
             }
             return {
               ...mapping,
-              status: "unmatched",
+              status: "unmatched" as const,
               codeComponent: null,
               resolvedAt,
             };
@@ -586,7 +586,7 @@ export const useDesignSystemStore = create<DesignSystemState>((set, get) => ({
         run.id === runForSnapshot?.id
           ? {
               ...run,
-              status: openCount === 0 ? "completed" : run.status,
+              status: openCount === 0 ? ("completed" as const) : run.status,
               issueCount: openCount,
             }
           : run
