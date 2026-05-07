@@ -28,10 +28,12 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  if (!getHandover(slug)) {
+  const handover = await getHandover(slug);
+  if (!handover) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  return NextResponse.json({ comments: listComments(slug) });
+  const comments = await listComments(slug);
+  return NextResponse.json({ comments });
 }
 
 export async function POST(
@@ -57,7 +59,7 @@ export async function POST(
       ? body.author.trim()
       : "you";
 
-  const comment = addComment({
+  const comment = await addComment({
     slug,
     anchor: body.anchor,
     body: body.body.trim(),

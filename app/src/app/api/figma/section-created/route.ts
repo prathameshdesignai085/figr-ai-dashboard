@@ -34,14 +34,14 @@ export async function POST(req: NextRequest) {
       { status: 400, headers: CORS_HEADERS }
     );
   }
-  if (!isValidSession(body.token)) {
+  if (!(await isValidSession(body.token))) {
     return NextResponse.json(
       { error: "Invalid session token" },
       { status: 401, headers: CORS_HEADERS }
     );
   }
-  recordSectionUrl(body.token, body.slug, body.sectionUrl);
-  const attached = attachFigmaSection(body.slug, body.sectionUrl);
+  await recordSectionUrl(body.token, body.slug, body.sectionUrl);
+  const attached = await attachFigmaSection(body.slug, body.sectionUrl);
   return NextResponse.json(
     { ok: true, attached },
     { headers: CORS_HEADERS }

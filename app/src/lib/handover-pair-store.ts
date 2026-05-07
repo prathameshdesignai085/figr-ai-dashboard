@@ -1,11 +1,13 @@
 import "server-only";
 import { customAlphabet } from "nanoid";
+import { getRedis } from "./redis";
 
 // Avoid lookalike chars (0/O, 1/I/L) in the user-typed code.
 const codeId = customAlphabet("ABCDEFGHJKMNPQRSTUVWXYZ23456789", 6);
 const tokenId = customAlphabet("23456789abcdefghjkmnpqrstuvwxyz", 32);
 
-const PAIR_TTL_MS = 15 * 60 * 1000;
+const PAIR_TTL_SECONDS = 15 * 60; // 15 minutes
+const SESSION_TTL_SECONDS = 24 * 60 * 60; // 24h, generous for demo flows
 
 export type HandoverBundleState = {
   id: string;
@@ -24,7 +26,6 @@ export type HandoverBundle = {
 type Pairing = {
   code: string;
   sessionToken: string;
-  expiresAt: number;
 };
 
 type Session = {
@@ -33,123 +34,114 @@ type Session = {
   claimedAt?: string;
   lastBundle?: HandoverBundle;
   lastBundleAt?: string;
-  sectionUrlsBySlug: Map<string, string>;
+  /** Plain object instead of Map — Redis can't store nested Maps. */
+  sectionUrlsBySlug: Record<string, string>;
 };
 
-type Store = {
-  pairCodes: Map<string, Pairing>;
-  sessions: Map<string, Session>;
-};
-
-const GLOBAL_KEY = "__figredHandoverPairStore" as const;
-
-function getStore(): Store {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const g = globalThis as any;
-  if (!g[GLOBAL_KEY]) {
-    g[GLOBAL_KEY] = {
-      pairCodes: new Map<string, Pairing>(),
-      sessions: new Map<string, Session>(),
-    };
-  }
-  return g[GLOBAL_KEY] as Store;
-}
-
-function expireOldCodes(s: Store): void {
-  const now = Date.now();
-  for (const [code, pairing] of s.pairCodes) {
-    if (pairing.expiresAt < now) s.pairCodes.delete(code);
-  }
-}
+const codeKey = (code: string) => `pair:code:${code}`;
+const sessionKey = (token: string) => `pair:session:${token}`;
 
 /**
  * Issue a fresh pair code. Returns both the code (shown to the user) and the
  * sessionToken (stored locally by the Figred webapp so it can later queue
  * bundles for this session).
  */
-export function issueCode(): {
+export async function issueCode(): Promise<{
   code: string;
   sessionToken: string;
   expiresAt: string;
-} {
-  const s = getStore();
-  expireOldCodes(s);
+}> {
+  const redis = getRedis();
   const code = codeId();
   const sessionToken = tokenId();
-  const expiresAt = Date.now() + PAIR_TTL_MS;
-  s.pairCodes.set(code, { code, sessionToken, expiresAt });
-  s.sessions.set(sessionToken, {
+  const pairing: Pairing = { code, sessionToken };
+  const session: Session = {
     token: sessionToken,
-    sectionUrlsBySlug: new Map(),
-  });
-  return { code, sessionToken, expiresAt: new Date(expiresAt).toISOString() };
+    sectionUrlsBySlug: {},
+  };
+  await Promise.all([
+    redis.set(codeKey(code), pairing, { ex: PAIR_TTL_SECONDS }),
+    redis.set(sessionKey(sessionToken), session, { ex: SESSION_TTL_SECONDS }),
+  ]);
+  const expiresAt = new Date(Date.now() + PAIR_TTL_SECONDS * 1000).toISOString();
+  return { code, sessionToken, expiresAt };
 }
 
 /**
  * Claim a code (single-use). Returns the sessionToken that was minted alongside
  * the code, or null if the code is unknown / expired / already claimed.
  */
-export function claimCode(code: string): string | null {
-  const s = getStore();
-  expireOldCodes(s);
+export async function claimCode(code: string): Promise<string | null> {
+  const redis = getRedis();
   const normalized = code.trim().toUpperCase();
-  const pairing = s.pairCodes.get(normalized);
+  const pairing = await redis.get<Pairing>(codeKey(normalized));
   if (!pairing) return null;
-  if (pairing.expiresAt < Date.now()) {
-    s.pairCodes.delete(normalized);
-    return null;
-  }
-  s.pairCodes.delete(normalized); // single-use
+
+  // Single-use: delete the code regardless of what happens next.
+  await redis.del(codeKey(normalized));
+
   // Mark the matching session as claimed so the webapp can detect it.
-  const session = s.sessions.get(pairing.sessionToken);
-  if (session) session.claimedAt = new Date().toISOString();
+  const session = await redis.get<Session>(sessionKey(pairing.sessionToken));
+  if (session) {
+    session.claimedAt = new Date().toISOString();
+    await redis.set(sessionKey(pairing.sessionToken), session, {
+      ex: SESSION_TTL_SECONDS,
+    });
+  }
   return pairing.sessionToken;
 }
 
 /** Has the plugin claimed the code for this session yet? */
-export function isClaimed(sessionToken: string): { claimed: boolean; claimedAt?: string } {
-  const s = getStore();
-  const session = s.sessions.get(sessionToken);
+export async function isClaimed(
+  sessionToken: string
+): Promise<{ claimed: boolean; claimedAt?: string }> {
+  const session = await getRedis().get<Session>(sessionKey(sessionToken));
   if (!session) return { claimed: false };
   return { claimed: !!session.claimedAt, claimedAt: session.claimedAt };
 }
 
 /** Stash a bundle for the paired plugin to pull next. */
-export function queueBundle(
+export async function queueBundle(
   sessionToken: string,
   bundle: HandoverBundle
-): boolean {
-  const s = getStore();
-  const session = s.sessions.get(sessionToken);
+): Promise<boolean> {
+  const redis = getRedis();
+  const session = await redis.get<Session>(sessionKey(sessionToken));
   if (!session) return false;
   session.lastBundle = bundle;
   session.lastBundleAt = new Date().toISOString();
+  await redis.set(sessionKey(sessionToken), session, {
+    ex: SESSION_TTL_SECONDS,
+  });
   return true;
 }
 
 /** Plugin-side pull. Does NOT clear the bundle — re-pulls are allowed. */
-export function pullLatest(
+export async function pullLatest(
   sessionToken: string
-): { bundle: HandoverBundle; lastBundleAt: string } | null {
-  const s = getStore();
-  const session = s.sessions.get(sessionToken);
+): Promise<{ bundle: HandoverBundle; lastBundleAt: string } | null> {
+  const session = await getRedis().get<Session>(sessionKey(sessionToken));
   if (!session?.lastBundle || !session.lastBundleAt) return null;
   return { bundle: session.lastBundle, lastBundleAt: session.lastBundleAt };
 }
 
-export function recordSectionUrl(
+export async function recordSectionUrl(
   sessionToken: string,
   slug: string,
   sectionUrl: string
-): boolean {
-  const s = getStore();
-  const session = s.sessions.get(sessionToken);
+): Promise<boolean> {
+  const redis = getRedis();
+  const session = await redis.get<Session>(sessionKey(sessionToken));
   if (!session) return false;
-  session.sectionUrlsBySlug.set(slug, sectionUrl);
+  session.sectionUrlsBySlug[slug] = sectionUrl;
+  await redis.set(sessionKey(sessionToken), session, {
+    ex: SESSION_TTL_SECONDS,
+  });
   return true;
 }
 
 /** Verify a session token exists (for endpoints that need auth). */
-export function isValidSession(sessionToken: string): boolean {
-  return getStore().sessions.has(sessionToken);
+export async function isValidSession(sessionToken: string): Promise<boolean> {
+  const exists = await getRedis().exists(sessionKey(sessionToken));
+  return exists > 0;
 }

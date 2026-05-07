@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const slug = slugId();
   const id = `ho-${slug}`;
-  const version = nextVersionForSpace(body.spaceId);
+  const version = await nextVersionForSpace(body.spaceId);
 
   const handover: Handover = {
     id,
@@ -70,12 +70,12 @@ export async function POST(req: NextRequest) {
     previousVersionId: body.previousVersionId,
   };
 
-  saveHandover(handover);
+  await saveHandover(handover);
 
   // Mark the parent handover as superseded so its public page shows a
   // banner pointing readers to this new version.
   if (body.previousVersionId) {
-    markSuperseded(body.previousVersionId, handover.id);
+    await markSuperseded(body.previousVersionId, handover.id);
   }
 
   const statesReceived = body.states?.length ?? 0;
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       })),
     };
     queuedStates = bundle.states.length;
-    queuedToFigma = queueBundle(body.figmaSessionToken, bundle);
+    queuedToFigma = await queueBundle(body.figmaSessionToken, bundle);
     console.log(
       `[publish] queued ${queuedStates} state(s) to figma session token=${body.figmaSessionToken.slice(
         0,

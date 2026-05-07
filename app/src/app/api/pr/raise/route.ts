@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     components: body.components ?? [],
   };
 
-  savePr(pr);
+  await savePr(pr);
 
   console.log(
     `[pr/raise] slug=${slug} space=${body.spaceId} components=${body.components?.length ?? 0}`

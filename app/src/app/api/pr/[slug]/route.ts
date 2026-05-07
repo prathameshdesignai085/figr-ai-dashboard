@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const pr = getPr(slug);
+  const pr = await getPr(slug);
   if (!pr) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

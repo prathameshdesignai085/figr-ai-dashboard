@@ -15,8 +15,10 @@ export async function GET(
   { params }: { params: Promise<{ spaceId: string }> }
 ) {
   const { spaceId } = await params;
-  const all = listHandoversForSpace(spaceId);
-  const latest = findLatestHandoverForSpace(spaceId);
+  const [all, latest] = await Promise.all([
+    listHandoversForSpace(spaceId),
+    findLatestHandoverForSpace(spaceId),
+  ]);
   return NextResponse.json({
     count: all.length,
     nextVersion: all.length + 1,

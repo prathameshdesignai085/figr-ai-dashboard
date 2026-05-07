@@ -19,6 +19,6 @@ export async function OPTIONS() {
  * localStorage by the Figred webapp so it can queue bundles later).
  */
 export async function POST() {
-  const result = issueCode();
+  const result = await issueCode();
   return NextResponse.json(result, { headers: CORS_HEADERS });
 }

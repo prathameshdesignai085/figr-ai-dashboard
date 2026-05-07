@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       { status: 400, headers: CORS_HEADERS }
     );
   }
-  const sessionToken = claimCode(body.code);
+  const sessionToken = await claimCode(body.code);
   if (!sessionToken) {
     return NextResponse.json(
       { error: "Invalid or expired code" },

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { nanoid } from "nanoid";
 import type { CapturedState } from "@/types";
+import { idbStorage } from "@/lib/zustand-idb-storage";
 
 type AddCapturedStateInput = Omit<CapturedState, "id" | "capturedAt">;
 
@@ -54,10 +55,10 @@ export const useHandoverStore = create<HandoverState>()(
     }),
     {
       name: "figred-handover",
-      // Captures contain base64 PNGs which can be large — keep them in localStorage
-      // for now (~5MB cap is plenty for a few states). Phase 3 swaps in real persistence.
-      storage: createJSONStorage(() => localStorage),
-      version: 1,
+      // Captures contain base64 PNGs that quickly saturate localStorage's ~5 MB
+      // quota. IndexedDB lifts the ceiling to hundreds of MB (browser-dependent).
+      storage: createJSONStorage(() => idbStorage),
+      version: 2,
     }
   )
 );

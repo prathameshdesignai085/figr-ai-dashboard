@@ -26,5 +26,6 @@ export async function GET(req: NextRequest) {
       { status: 400, headers: CORS_HEADERS }
     );
   }
-  return NextResponse.json(isClaimed(token), { headers: CORS_HEADERS });
+  const status = await isClaimed(token);
+  return NextResponse.json(status, { headers: CORS_HEADERS });
 }

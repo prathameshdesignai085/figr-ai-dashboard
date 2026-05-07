@@ -13,14 +13,16 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const handover = getHandover(slug);
+  const handover = await getHandover(slug);
   if (!handover) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const origin = req.nextUrl.origin;
   const aiDigest = buildHandoverAiDigest(handover, origin);
-  const comments = listComments(slug);
-  const versions = listVersionsForHandover(slug);
+  const [comments, versions] = await Promise.all([
+    listComments(slug),
+    listVersionsForHandover(slug),
+  ]);
   return NextResponse.json({
     ...handover,
     aiDigest,

@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       { status: 400, headers: CORS_HEADERS }
     );
   }
-  const result = pullLatest(token);
+  const result = await pullLatest(token);
   if (!result) {
     console.log(
       `[pull] no bundle queued for token=${token.slice(0, 8)}…`

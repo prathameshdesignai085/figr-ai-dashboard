@@ -6,63 +6,58 @@ import type {
   HandoverCommentAnchor,
   HandoverVersionRef,
 } from "@/types";
+import { getRedis } from "./redis";
 
 /**
- * In-memory store for published handovers, keyed by slug.
- * Survives Next dev HMR via globalThis. Resets on full server restart —
- * acceptable for the demo prototype.
+ * Persistent store for published handovers, backed by Upstash Redis.
+ *
+ * Key shape:
+ *   handover:{slug}            JSON Handover
+ *   handover:space:{spaceId}   SET of slugs (for listing by space)
+ *   handover:comments:{slug}   LIST of JSON HandoverComment
  */
-type Store = {
-  handovers: Map<string, Handover>;
-  /** Comments keyed by handover slug → array of comments. */
-  commentsBySlug: Map<string, HandoverComment[]>;
-};
 
-const GLOBAL_KEY = "__figredHandoverStore" as const;
 const commentId = customAlphabet("23456789abcdefghjkmnpqrstuvwxyz", 10);
 
-function getStore(): Store {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const g = globalThis as any;
-  if (!g[GLOBAL_KEY]) {
-    g[GLOBAL_KEY] = {
-      handovers: new Map<string, Handover>(),
-      commentsBySlug: new Map<string, HandoverComment[]>(),
-    };
-  } else if (!g[GLOBAL_KEY].commentsBySlug) {
-    // Migrate older shape (Map of handovers) into the new wrapper without losing data.
-    const previous = g[GLOBAL_KEY] as Map<string, Handover>;
-    g[GLOBAL_KEY] = {
-      handovers: previous,
-      commentsBySlug: new Map<string, HandoverComment[]>(),
-    };
-  }
-  return g[GLOBAL_KEY] as Store;
+const handoverKey = (slug: string) => `handover:${slug}`;
+const spaceKey = (spaceId: string) => `handover:space:${spaceId}`;
+const commentsKey = (slug: string) => `handover:comments:${slug}`;
+
+export async function saveHandover(h: Handover): Promise<void> {
+  const redis = getRedis();
+  await Promise.all([
+    redis.set(handoverKey(h.slug), h),
+    redis.sadd(spaceKey(h.spaceId), h.slug),
+  ]);
 }
 
-export function saveHandover(h: Handover): void {
-  getStore().handovers.set(h.slug, h);
+export async function getHandover(slug: string): Promise<Handover | undefined> {
+  const result = await getRedis().get<Handover>(handoverKey(slug));
+  return result ?? undefined;
 }
 
-export function getHandover(slug: string): Handover | undefined {
-  return getStore().handovers.get(slug);
-}
-
-export function listHandoversForSpace(spaceId: string): Handover[] {
-  return [...getStore().handovers.values()].filter(
-    (h) => h.spaceId === spaceId
+export async function listHandoversForSpace(
+  spaceId: string
+): Promise<Handover[]> {
+  const redis = getRedis();
+  const slugs = await redis.smembers(spaceKey(spaceId));
+  if (slugs.length === 0) return [];
+  const handovers = await Promise.all(
+    slugs.map((slug) => redis.get<Handover>(handoverKey(slug)))
   );
+  return handovers.filter((h): h is Handover => h !== null);
 }
 
-export function nextVersionForSpace(spaceId: string): number {
-  return listHandoversForSpace(spaceId).length + 1;
+export async function nextVersionForSpace(spaceId: string): Promise<number> {
+  const list = await listHandoversForSpace(spaceId);
+  return list.length + 1;
 }
 
 /** The most-recent (highest-version) handover for a Space, or undefined. */
-export function findLatestHandoverForSpace(
+export async function findLatestHandoverForSpace(
   spaceId: string
-): Handover | undefined {
-  const list = listHandoversForSpace(spaceId);
+): Promise<Handover | undefined> {
+  const list = await listHandoversForSpace(spaceId);
   if (list.length === 0) return undefined;
   return list.reduce((acc, h) => (h.version > acc.version ? h : acc), list[0]);
 }
@@ -71,23 +66,35 @@ export function findLatestHandoverForSpace(
  * Mark `prevId` as superseded by `newId`. Returns true if the previous
  * handover existed and was updated.
  */
-export function markSuperseded(prevId: string, newId: string): boolean {
-  const store = getStore();
-  for (const h of store.handovers.values()) {
-    if (h.id === prevId) {
-      h.supersededBy = newId;
-      store.handovers.set(h.slug, h);
-      return true;
-    }
-  }
-  return false;
+export async function markSuperseded(
+  prevId: string,
+  newId: string
+): Promise<boolean> {
+  // We don't have an id→slug index; fan out via the same set lookup pattern
+  // by finding which space the old handover lives in. The caller already
+  // knows the space (it called nextVersionForSpace), but the old contract
+  // didn't pass it, so we walk the new handover's space set instead.
+  const newHandover = await getRedis().get<Handover>(
+    // ids are `ho-{slug}`; derive slug to find the new record's space
+    handoverKey(newId.replace(/^ho-/, ""))
+  );
+  if (!newHandover) return false;
+  const list = await listHandoversForSpace(newHandover.spaceId);
+  const previous = list.find((h) => h.id === prevId);
+  if (!previous) return false;
+  previous.supersededBy = newId;
+  await getRedis().set(handoverKey(previous.slug), previous);
+  return true;
 }
 
 /** All version rows for the Space the given handover belongs to, ascending by version. */
-export function listVersionsForHandover(slug: string): HandoverVersionRef[] {
-  const h = getHandover(slug);
-  if (!h) return [];
-  return listHandoversForSpace(h.spaceId)
+export async function listVersionsForHandover(
+  slug: string
+): Promise<HandoverVersionRef[]> {
+  const handover = await getHandover(slug);
+  if (!handover) return [];
+  const list = await listHandoversForSpace(handover.spaceId);
+  return list
     .map((v) => ({
       id: v.id,
       slug: v.slug,
@@ -101,28 +108,36 @@ export function listVersionsForHandover(slug: string): HandoverVersionRef[] {
 /**
  * Attach a generated Figma section URL to a handover.
  */
-export function attachFigmaSection(slug: string, sectionUrl: string): boolean {
-  const handover = getHandover(slug);
+export async function attachFigmaSection(
+  slug: string,
+  sectionUrl: string
+): Promise<boolean> {
+  const handover = await getHandover(slug);
   if (!handover) return false;
   handover.figmaSectionUrl = sectionUrl;
-  saveHandover(handover);
+  await saveHandover(handover);
   return true;
 }
 
 // ---------- Comments ----------
 
-export function listComments(slug: string): HandoverComment[] {
-  return getStore().commentsBySlug.get(slug) ?? [];
+export async function listComments(slug: string): Promise<HandoverComment[]> {
+  const items = await getRedis().lrange<HandoverComment>(
+    commentsKey(slug),
+    0,
+    -1
+  );
+  return items;
 }
 
-export function addComment(input: {
+export async function addComment(input: {
   slug: string;
   anchor: HandoverCommentAnchor;
   body: string;
   author: string;
-}): HandoverComment | null {
-  const store = getStore();
-  const handover = store.handovers.get(input.slug);
+}): Promise<HandoverComment | null> {
+  const redis = getRedis();
+  const handover = await redis.get<Handover>(handoverKey(input.slug));
   if (!handover) return null;
   const comment: HandoverComment = {
     id: `cmt-${commentId()}`,
@@ -132,8 +147,6 @@ export function addComment(input: {
     author: input.author,
     createdAt: new Date().toISOString(),
   };
-  const list = store.commentsBySlug.get(input.slug) ?? [];
-  list.push(comment);
-  store.commentsBySlug.set(input.slug, list);
+  await redis.rpush(commentsKey(input.slug), comment);
   return comment;
 }

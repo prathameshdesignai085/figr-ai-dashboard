@@ -1,32 +1,39 @@
 import "server-only";
 import type { ComponentPR } from "@/types";
+import { getRedis } from "./redis";
 
 /**
- * In-memory store for component PRs, keyed by slug. Same shape and
- * lifecycle as `handover-server-store.ts` — survives Next dev HMR via
- * globalThis, resets on full server restart.
+ * Persistent store for component PRs, backed by Upstash Redis.
+ *
+ * Key shape:
+ *   pr:{slug}              JSON ComponentPR
+ *   pr:space:{spaceId}     SET of slugs
  */
-type Store = Map<string, ComponentPR>;
 
-const GLOBAL_KEY = "__figredPrStore" as const;
+const prKey = (slug: string) => `pr:${slug}`;
+const spaceKey = (spaceId: string) => `pr:space:${spaceId}`;
 
-function getStore(): Store {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const g = globalThis as any;
-  if (!g[GLOBAL_KEY]) {
-    g[GLOBAL_KEY] = new Map<string, ComponentPR>();
-  }
-  return g[GLOBAL_KEY] as Store;
+export async function savePr(pr: ComponentPR): Promise<void> {
+  const redis = getRedis();
+  await Promise.all([
+    redis.set(prKey(pr.slug), pr),
+    redis.sadd(spaceKey(pr.spaceId), pr.slug),
+  ]);
 }
 
-export function savePr(pr: ComponentPR): void {
-  getStore().set(pr.slug, pr);
+export async function getPr(slug: string): Promise<ComponentPR | undefined> {
+  const result = await getRedis().get<ComponentPR>(prKey(slug));
+  return result ?? undefined;
 }
 
-export function getPr(slug: string): ComponentPR | undefined {
-  return getStore().get(slug);
-}
-
-export function listPrsForSpace(spaceId: string): ComponentPR[] {
-  return [...getStore().values()].filter((p) => p.spaceId === spaceId);
+export async function listPrsForSpace(
+  spaceId: string
+): Promise<ComponentPR[]> {
+  const redis = getRedis();
+  const slugs = await redis.smembers(spaceKey(spaceId));
+  if (slugs.length === 0) return [];
+  const prs = await Promise.all(
+    slugs.map((slug) => redis.get<ComponentPR>(prKey(slug)))
+  );
+  return prs.filter((p): p is ComponentPR => p !== null);
 }
