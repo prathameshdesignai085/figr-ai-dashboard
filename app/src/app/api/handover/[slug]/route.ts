@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import {
   getHandover,
   listComments,
   listVersionsForHandover,
 } from "@/lib/handover-server-store";
 import { buildHandoverAiDigest } from "@/lib/handover-ai-digest";
+import { storeFailure, storeJson } from "@/lib/api-store-response";
 
 export const runtime = "nodejs";
 
@@ -13,20 +14,24 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const handover = await getHandover(slug);
-  if (!handover) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    const handover = await getHandover(slug);
+    if (!handover) {
+      return storeJson({ error: "Not found" }, { status: 404 });
+    }
+    const origin = req.nextUrl.origin;
+    const aiDigest = buildHandoverAiDigest(handover, origin);
+    const [comments, versions] = await Promise.all([
+      listComments(slug),
+      listVersionsForHandover(slug),
+    ]);
+    return storeJson({
+      ...handover,
+      aiDigest,
+      comments,
+      versions,
+    });
+  } catch (error) {
+    return storeFailure("Handover lookup", error);
   }
-  const origin = req.nextUrl.origin;
-  const aiDigest = buildHandoverAiDigest(handover, origin);
-  const [comments, versions] = await Promise.all([
-    listComments(slug),
-    listVersionsForHandover(slug),
-  ]);
-  return NextResponse.json({
-    ...handover,
-    aiDigest,
-    comments,
-    versions,
-  });
 }

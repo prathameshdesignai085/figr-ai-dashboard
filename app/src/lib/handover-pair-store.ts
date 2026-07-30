@@ -1,6 +1,6 @@
 import "server-only";
 import { customAlphabet } from "nanoid";
-import { getRedis } from "./redis";
+import { getKv } from "./kv";
 
 // Avoid lookalike chars (0/O, 1/I/L) in the user-typed code.
 const codeId = customAlphabet("ABCDEFGHJKMNPQRSTUVWXYZ23456789", 6);
@@ -51,7 +51,7 @@ export async function issueCode(): Promise<{
   sessionToken: string;
   expiresAt: string;
 }> {
-  const redis = getRedis();
+  const kv = getKv();
   const code = codeId();
   const sessionToken = tokenId();
   const pairing: Pairing = { code, sessionToken };
@@ -60,8 +60,8 @@ export async function issueCode(): Promise<{
     sectionUrlsBySlug: {},
   };
   await Promise.all([
-    redis.set(codeKey(code), pairing, { ex: PAIR_TTL_SECONDS }),
-    redis.set(sessionKey(sessionToken), session, { ex: SESSION_TTL_SECONDS }),
+    kv.set(codeKey(code), pairing, { ex: PAIR_TTL_SECONDS }),
+    kv.set(sessionKey(sessionToken), session, { ex: SESSION_TTL_SECONDS }),
   ]);
   const expiresAt = new Date(Date.now() + PAIR_TTL_SECONDS * 1000).toISOString();
   return { code, sessionToken, expiresAt };
@@ -72,19 +72,19 @@ export async function issueCode(): Promise<{
  * the code, or null if the code is unknown / expired / already claimed.
  */
 export async function claimCode(code: string): Promise<string | null> {
-  const redis = getRedis();
+  const kv = getKv();
   const normalized = code.trim().toUpperCase();
-  const pairing = await redis.get<Pairing>(codeKey(normalized));
+  const pairing = await kv.get<Pairing>(codeKey(normalized));
   if (!pairing) return null;
 
   // Single-use: delete the code regardless of what happens next.
-  await redis.del(codeKey(normalized));
+  await kv.del(codeKey(normalized));
 
   // Mark the matching session as claimed so the webapp can detect it.
-  const session = await redis.get<Session>(sessionKey(pairing.sessionToken));
+  const session = await kv.get<Session>(sessionKey(pairing.sessionToken));
   if (session) {
     session.claimedAt = new Date().toISOString();
-    await redis.set(sessionKey(pairing.sessionToken), session, {
+    await kv.set(sessionKey(pairing.sessionToken), session, {
       ex: SESSION_TTL_SECONDS,
     });
   }
@@ -95,7 +95,7 @@ export async function claimCode(code: string): Promise<string | null> {
 export async function isClaimed(
   sessionToken: string
 ): Promise<{ claimed: boolean; claimedAt?: string }> {
-  const session = await getRedis().get<Session>(sessionKey(sessionToken));
+  const session = await getKv().get<Session>(sessionKey(sessionToken));
   if (!session) return { claimed: false };
   return { claimed: !!session.claimedAt, claimedAt: session.claimedAt };
 }
@@ -105,12 +105,12 @@ export async function queueBundle(
   sessionToken: string,
   bundle: HandoverBundle
 ): Promise<boolean> {
-  const redis = getRedis();
-  const session = await redis.get<Session>(sessionKey(sessionToken));
+  const kv = getKv();
+  const session = await kv.get<Session>(sessionKey(sessionToken));
   if (!session) return false;
   session.lastBundle = bundle;
   session.lastBundleAt = new Date().toISOString();
-  await redis.set(sessionKey(sessionToken), session, {
+  await kv.set(sessionKey(sessionToken), session, {
     ex: SESSION_TTL_SECONDS,
   });
   return true;
@@ -120,7 +120,7 @@ export async function queueBundle(
 export async function pullLatest(
   sessionToken: string
 ): Promise<{ bundle: HandoverBundle; lastBundleAt: string } | null> {
-  const session = await getRedis().get<Session>(sessionKey(sessionToken));
+  const session = await getKv().get<Session>(sessionKey(sessionToken));
   if (!session?.lastBundle || !session.lastBundleAt) return null;
   return { bundle: session.lastBundle, lastBundleAt: session.lastBundleAt };
 }
@@ -130,11 +130,11 @@ export async function recordSectionUrl(
   slug: string,
   sectionUrl: string
 ): Promise<boolean> {
-  const redis = getRedis();
-  const session = await redis.get<Session>(sessionKey(sessionToken));
+  const kv = getKv();
+  const session = await kv.get<Session>(sessionKey(sessionToken));
   if (!session) return false;
   session.sectionUrlsBySlug[slug] = sectionUrl;
-  await redis.set(sessionKey(sessionToken), session, {
+  await kv.set(sessionKey(sessionToken), session, {
     ex: SESSION_TTL_SECONDS,
   });
   return true;
@@ -142,6 +142,6 @@ export async function recordSectionUrl(
 
 /** Verify a session token exists (for endpoints that need auth). */
 export async function isValidSession(sessionToken: string): Promise<boolean> {
-  const exists = await getRedis().exists(sessionKey(sessionToken));
+  const exists = await getKv().exists(sessionKey(sessionToken));
   return exists > 0;
 }

@@ -6,10 +6,11 @@ import type {
   HandoverCommentAnchor,
   HandoverVersionRef,
 } from "@/types";
-import { getRedis } from "./redis";
+import { getKv } from "./kv";
 
 /**
- * Persistent store for published handovers, backed by Upstash Redis.
+ * Persistent store for published handovers, backed by the KV adapter
+ * (Upstash Redis when attached, in-memory otherwise — see `kv.ts`).
  *
  * Key shape:
  *   handover:{slug}            JSON Handover
@@ -24,26 +25,26 @@ const spaceKey = (spaceId: string) => `handover:space:${spaceId}`;
 const commentsKey = (slug: string) => `handover:comments:${slug}`;
 
 export async function saveHandover(h: Handover): Promise<void> {
-  const redis = getRedis();
+  const kv = getKv();
   await Promise.all([
-    redis.set(handoverKey(h.slug), h),
-    redis.sadd(spaceKey(h.spaceId), h.slug),
+    kv.set(handoverKey(h.slug), h),
+    kv.sadd(spaceKey(h.spaceId), h.slug),
   ]);
 }
 
 export async function getHandover(slug: string): Promise<Handover | undefined> {
-  const result = await getRedis().get<Handover>(handoverKey(slug));
+  const result = await getKv().get<Handover>(handoverKey(slug));
   return result ?? undefined;
 }
 
 export async function listHandoversForSpace(
   spaceId: string
 ): Promise<Handover[]> {
-  const redis = getRedis();
-  const slugs = await redis.smembers(spaceKey(spaceId));
+  const kv = getKv();
+  const slugs = await kv.smembers(spaceKey(spaceId));
   if (slugs.length === 0) return [];
   const handovers = await Promise.all(
-    slugs.map((slug) => redis.get<Handover>(handoverKey(slug)))
+    slugs.map((slug) => kv.get<Handover>(handoverKey(slug)))
   );
   return handovers.filter((h): h is Handover => h !== null);
 }
@@ -74,7 +75,7 @@ export async function markSuperseded(
   // by finding which space the old handover lives in. The caller already
   // knows the space (it called nextVersionForSpace), but the old contract
   // didn't pass it, so we walk the new handover's space set instead.
-  const newHandover = await getRedis().get<Handover>(
+  const newHandover = await getKv().get<Handover>(
     // ids are `ho-{slug}`; derive slug to find the new record's space
     handoverKey(newId.replace(/^ho-/, ""))
   );
@@ -83,7 +84,7 @@ export async function markSuperseded(
   const previous = list.find((h) => h.id === prevId);
   if (!previous) return false;
   previous.supersededBy = newId;
-  await getRedis().set(handoverKey(previous.slug), previous);
+  await getKv().set(handoverKey(previous.slug), previous);
   return true;
 }
 
@@ -122,7 +123,7 @@ export async function attachFigmaSection(
 // ---------- Comments ----------
 
 export async function listComments(slug: string): Promise<HandoverComment[]> {
-  const items = await getRedis().lrange<HandoverComment>(
+  const items = await getKv().lrange<HandoverComment>(
     commentsKey(slug),
     0,
     -1
@@ -136,8 +137,8 @@ export async function addComment(input: {
   body: string;
   author: string;
 }): Promise<HandoverComment | null> {
-  const redis = getRedis();
-  const handover = await redis.get<Handover>(handoverKey(input.slug));
+  const kv = getKv();
+  const handover = await kv.get<Handover>(handoverKey(input.slug));
   if (!handover) return null;
   const comment: HandoverComment = {
     id: `cmt-${commentId()}`,
@@ -147,6 +148,6 @@ export async function addComment(input: {
     author: input.author,
     createdAt: new Date().toISOString(),
   };
-  await redis.rpush(commentsKey(input.slug), comment);
+  await kv.rpush(commentsKey(input.slug), comment);
   return comment;
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pullLatest } from "@/lib/handover-pair-store";
+import { storeFailure } from "@/lib/api-store-response";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,12 @@ export async function POST(req: NextRequest) {
       { status: 400, headers: CORS_HEADERS }
     );
   }
-  const result = await pullLatest(token);
+  let result: Awaited<ReturnType<typeof pullLatest>>;
+  try {
+    result = await pullLatest(token);
+  } catch (error) {
+    return storeFailure("Figma bundle pull", error, CORS_HEADERS);
+  }
   if (!result) {
     console.log(
       `[pull] no bundle queued for token=${token.slice(0, 8)}…`

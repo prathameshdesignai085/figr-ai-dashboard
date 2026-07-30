@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isClaimed } from "@/lib/handover-pair-store";
+import { storeFailure } from "@/lib/api-store-response";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,10 @@ export async function GET(req: NextRequest) {
       { status: 400, headers: CORS_HEADERS }
     );
   }
-  const status = await isClaimed(token);
-  return NextResponse.json(status, { headers: CORS_HEADERS });
+  try {
+    const status = await isClaimed(token);
+    return NextResponse.json(status, { headers: CORS_HEADERS });
+  } catch (error) {
+    return storeFailure("Pair status lookup", error, CORS_HEADERS);
+  }
 }

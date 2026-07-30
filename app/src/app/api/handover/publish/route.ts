@@ -10,6 +10,8 @@ import {
   queueBundle,
   type HandoverBundle,
 } from "@/lib/handover-pair-store";
+import { storeFailure, storeJson } from "@/lib/api-store-response";
+import { getKvStatus } from "@/lib/kv";
 
 export const runtime = "nodejs";
 
@@ -47,6 +49,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  try {
+    return await publish(body);
+  } catch (error) {
+    return storeFailure("Publish", error);
+  }
+}
+
+async function publish(body: PublishPayload): Promise<NextResponse> {
   const slug = slugId();
   const id = `ho-${slug}`;
   const version = await nextVersionForSpace(body.spaceId);
@@ -110,12 +120,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({
+  const store = getKvStatus();
+  return storeJson({
     slug,
     version,
     id,
     queuedToFigma,
     statesReceived,
     queuedStates,
+    // Lets the client warn that this link may not open on another device.
+    storeBackend: store.backend,
+    durable: store.backend === "redis",
   });
 }

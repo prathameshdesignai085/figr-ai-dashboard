@@ -5,6 +5,7 @@ import {
   getHandover,
 } from "@/lib/handover-server-store";
 import type { HandoverCommentAnchor } from "@/types";
+import { storeFailure } from "@/lib/api-store-response";
 
 export const runtime = "nodejs";
 
@@ -28,12 +29,16 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const handover = await getHandover(slug);
-  if (!handover) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    const handover = await getHandover(slug);
+    if (!handover) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    const comments = await listComments(slug);
+    return NextResponse.json({ comments });
+  } catch (error) {
+    return storeFailure("Comment lookup", error);
   }
-  const comments = await listComments(slug);
-  return NextResponse.json({ comments });
 }
 
 export async function POST(
@@ -59,15 +64,21 @@ export async function POST(
       ? body.author.trim()
       : "you";
 
-  const comment = await addComment({
-    slug,
-    anchor: body.anchor,
-    body: body.body.trim(),
-    author,
-  });
-  if (!comment) {
-    return NextResponse.json({ error: "Handover not found" }, { status: 404 });
+  try {
+    const comment = await addComment({
+      slug,
+      anchor: body.anchor,
+      body: body.body.trim(),
+      author,
+    });
+    if (!comment) {
+      return NextResponse.json(
+        { error: "Handover not found" },
+        { status: 404 }
+      );
+    }
+    return NextResponse.json({ comment });
+  } catch (error) {
+    return storeFailure("Add comment", error);
   }
-
-  return NextResponse.json({ comment });
 }

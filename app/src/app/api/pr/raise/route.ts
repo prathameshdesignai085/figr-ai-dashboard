@@ -5,6 +5,7 @@ import type {
   ComponentPRSnapshotComponent,
 } from "@/types";
 import { savePr } from "@/lib/pr-server-store";
+import { storeFailure } from "@/lib/api-store-response";
 
 export const runtime = "nodejs";
 
@@ -50,7 +51,11 @@ export async function POST(req: NextRequest) {
     components: body.components ?? [],
   };
 
-  await savePr(pr);
+  try {
+    await savePr(pr);
+  } catch (error) {
+    return storeFailure("Raise PR", error);
+  }
 
   console.log(
     `[pr/raise] slug=${slug} space=${body.spaceId} components=${body.components?.length ?? 0}`

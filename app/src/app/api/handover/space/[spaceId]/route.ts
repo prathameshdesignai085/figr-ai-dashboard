@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import {
   findLatestHandoverForSpace,
   listHandoversForSpace,
 } from "@/lib/handover-server-store";
+import { storeFailure, storeJson } from "@/lib/api-store-response";
 
 export const runtime = "nodejs";
 
@@ -15,21 +16,25 @@ export async function GET(
   { params }: { params: Promise<{ spaceId: string }> }
 ) {
   const { spaceId } = await params;
-  const [all, latest] = await Promise.all([
-    listHandoversForSpace(spaceId),
-    findLatestHandoverForSpace(spaceId),
-  ]);
-  return NextResponse.json({
-    count: all.length,
-    nextVersion: all.length + 1,
-    latest: latest
-      ? {
-          id: latest.id,
-          slug: latest.slug,
-          version: latest.version,
-          title: latest.title,
-          publishedAt: latest.publishedAt,
-        }
-      : null,
-  });
+  try {
+    const [all, latest] = await Promise.all([
+      listHandoversForSpace(spaceId),
+      findLatestHandoverForSpace(spaceId),
+    ]);
+    return storeJson({
+      count: all.length,
+      nextVersion: all.length + 1,
+      latest: latest
+        ? {
+            id: latest.id,
+            slug: latest.slug,
+            version: latest.version,
+            title: latest.title,
+            publishedAt: latest.publishedAt,
+          }
+        : null,
+    });
+  } catch (error) {
+    return storeFailure("Handover version lookup", error);
+  }
 }

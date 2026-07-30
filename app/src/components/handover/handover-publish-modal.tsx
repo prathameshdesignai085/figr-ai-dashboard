@@ -19,13 +19,46 @@ import {
   FigmaPairSection,
   useFigmaPairing,
 } from "@/components/handover/figma-pair-section";
+import {
+  cacheHandover,
+  listCachedHandoversForSpace,
+} from "@/lib/handover-local-cache";
 import type {
+  Handover,
   HandoverContextItemSnapshot,
   HandoverKnowledgeSnapshot,
   HandoverStateSnapshot,
 } from "@/types";
 
 const PUBLISHED_BY = "you"; // single-user demo placeholder
+
+/**
+ * Turn a failed Response into something a human can act on.
+ *
+ * A thrown error inside a route handler yields a 500 with an *empty* body, so
+ * naively interpolating `await res.text()` produced the infamous bare
+ * "Publish failed:" with nothing after it. Always fall back to the status.
+ */
+async function describeFailure(res: Response): Promise<string> {
+  let raw = "";
+  try {
+    raw = await res.text();
+  } catch {
+    /* body already consumed or stream errored */
+  }
+  const trimmed = raw.trim();
+  if (trimmed) {
+    try {
+      const parsed = JSON.parse(trimmed) as { error?: string; detail?: string };
+      const parts = [parsed.error, parsed.detail].filter(Boolean);
+      if (parts.length) return `${parts.join(" — ")} (HTTP ${res.status})`;
+    } catch {
+      /* not JSON — fall through to the raw body */
+    }
+    return `${trimmed.slice(0, 200)} (HTTP ${res.status})`;
+  }
+  return `HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ""} (empty response body)`;
+}
 
 export function HandoverPublishModal({
   open,
@@ -80,6 +113,8 @@ export function HandoverPublishModal({
     nextVersion: number;
     latest: LatestVersion | null;
   } | null>(null);
+  /** Non-fatal warning shown above the footer (store degraded, etc.). */
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Default selections every time the modal opens.
   useEffect(() => {
@@ -91,21 +126,49 @@ export function HandoverPublishModal({
     setContextItemIds(new Set(space.contextItems.map((i) => i.id)));
     setKnowledgeIds(new Set()); // opt-in
     setError(null);
+    setNotice(null);
     setPushToFigma(!!figmaToken);
     // Fetch the next version + latest predecessor so we can label the
-    // Publish button accurately and chain handovers.
+    // Publish button accurately and chain handovers. If the server store is
+    // unreachable we fall back to what this device has published locally —
+    // previously this silently swallowed the failure and the button was left
+    // reading "Publish v?", which hid the fact that the API was already down.
     setVersionInfo(null);
     let cancelled = false;
-    fetch(`/api/handover/space/${space.id}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (cancelled || !d) return;
+    const spaceId = space.id;
+    (async () => {
+      try {
+        const res = await fetch(`/api/handover/space/${spaceId}`);
+        if (!res.ok) throw new Error(await describeFailure(res));
+        const d = await res.json();
+        if (cancelled) return;
         setVersionInfo({
           nextVersion: d.nextVersion ?? 1,
           latest: d.latest ?? null,
         });
-      })
-      .catch(() => {});
+      } catch (e) {
+        if (cancelled) return;
+        const local = await listCachedHandoversForSpace(spaceId);
+        if (cancelled) return;
+        const previous = local.at(-1) ?? null;
+        setVersionInfo({
+          nextVersion: local.length + 1,
+          latest: previous
+            ? {
+                id: previous.id,
+                slug: previous.slug,
+                version: previous.version,
+                title: previous.title,
+              }
+            : null,
+        });
+        setNotice(
+          `Couldn't reach the handover store (${
+            e instanceof Error ? e.message : String(e)
+          }). Version number is estimated from this device's history — publishing still works.`
+        );
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -185,19 +248,43 @@ export function HandoverPublishModal({
         body: payloadJson,
       });
       if (!res.ok) {
-        const t = await res.text();
-        throw new Error(`Publish failed: ${t.slice(0, 200)}`);
+        throw new Error(`Publish failed: ${await describeFailure(res)}`);
       }
       const data = (await res.json()) as {
         slug: string;
         version: number;
+        id: string;
         queuedToFigma?: boolean;
         statesReceived?: number;
         queuedStates?: number;
+        storeBackend?: "redis" | "memory";
+        durable?: boolean;
       };
       console.log(
-        `[publish-modal] response slug=${data.slug} v${data.version} statesReceived=${data.statesReceived} queuedStates=${data.queuedStates} queuedToFigma=${data.queuedToFigma}`
+        `[publish-modal] response slug=${data.slug} v${data.version} statesReceived=${data.statesReceived} queuedStates=${data.queuedStates} queuedToFigma=${data.queuedToFigma} store=${data.storeBackend}`
       );
+
+      // Keep a local copy so the published link opens from this device even
+      // when the server store is per-container memory (no database attached).
+      const published: Handover = {
+        id: data.id,
+        slug: data.slug,
+        spaceId: space.id,
+        spaceName: space.name,
+        version: data.version,
+        title: title.trim(),
+        summary,
+        status: "open",
+        publishedAt: new Date().toISOString(),
+        publishedBy: PUBLISHED_BY,
+        states,
+        contextItems,
+        knowledge,
+        openQuestions,
+        comments: [],
+        previousVersionId: versionInfo?.latest?.id,
+      };
+      await cacheHandover(published);
 
       // If the server received fewer states than we sent, surface that loudly
       // — that's the body-truncation symptom we're hunting.
@@ -405,6 +492,12 @@ export function HandoverPublishModal({
             sessionToken={figmaToken}
             onSessionTokenChange={setFigmaToken}
           />
+
+          {notice && (
+            <p className="rounded-md bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300">
+              {notice}
+            </p>
+          )}
 
           {error && (
             <p className="rounded-md bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-300">

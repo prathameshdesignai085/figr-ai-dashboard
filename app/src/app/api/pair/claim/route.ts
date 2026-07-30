@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { claimCode } from "@/lib/handover-pair-store";
+import { storeFailure } from "@/lib/api-store-response";
 
 export const runtime = "nodejs";
 
@@ -33,12 +34,16 @@ export async function POST(req: NextRequest) {
       { status: 400, headers: CORS_HEADERS }
     );
   }
-  const sessionToken = await claimCode(body.code);
-  if (!sessionToken) {
-    return NextResponse.json(
-      { error: "Invalid or expired code" },
-      { status: 404, headers: CORS_HEADERS }
-    );
+  try {
+    const sessionToken = await claimCode(body.code);
+    if (!sessionToken) {
+      return NextResponse.json(
+        { error: "Invalid or expired code" },
+        { status: 404, headers: CORS_HEADERS }
+      );
+    }
+    return NextResponse.json({ sessionToken }, { headers: CORS_HEADERS });
+  } catch (error) {
+    return storeFailure("Pair claim", error, CORS_HEADERS);
   }
-  return NextResponse.json({ sessionToken }, { headers: CORS_HEADERS });
 }

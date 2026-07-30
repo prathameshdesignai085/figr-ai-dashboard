@@ -29,6 +29,8 @@ import {
 import { ConnectCodingAgentModal } from "@/components/handover/connect-coding-agent-modal";
 import { CommentsThread } from "@/components/handover/comments-thread";
 import { FigmaSectionPreview } from "@/components/handover/figma-section-preview";
+import { readCachedHandover } from "@/lib/handover-local-cache";
+import { buildHandoverAiDigest } from "@/lib/handover-ai-digest";
 import { cn } from "@/lib/utils";
 
 type HandoverWithDigest = Handover & {
@@ -62,25 +64,55 @@ export default function HandoverPage({
   const [error, setError] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
-  const [origin, setOrigin] = useState("");
+  /** Set when we're rendering this device's local copy, not the server's. */
+  const [servedLocally, setServedLocally] = useState(false);
+
+  // Safe to read directly: every consumer sits below the `!data` early return,
+  // which only clears once the client-side fetch has resolved. Keeping it out
+  // of state avoids a setState-in-effect cascade.
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
 
   useEffect(() => {
-    setOrigin(window.location.origin);
+    const pageOrigin = window.location.origin;
     let cancelled = false;
-    fetch(`/api/handover/${slug}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`${res.status}`);
-        const json = (await res.json()) as HandoverWithDigest;
-        if (!cancelled) setData(json);
-      })
-      .catch((err) => {
-        if (!cancelled)
-          setError(
-            err instanceof Error && err.message === "404"
-              ? "Handover not found — the link may have expired (in-memory store resets when the dev server restarts)."
-              : `Failed to load: ${String(err)}`
-          );
-      });
+
+    (async () => {
+      let serverError: string | null = null;
+      try {
+        const res = await fetch(`/api/handover/${slug}`);
+        if (res.ok) {
+          const json = (await res.json()) as HandoverWithDigest;
+          if (!cancelled) setData(json);
+          return;
+        }
+        serverError =
+          res.status === 404
+            ? "The server has no record of this handover."
+            : `The handover store returned HTTP ${res.status}.`;
+      } catch (err) {
+        serverError = `Couldn't reach the handover store (${String(err)}).`;
+      }
+
+      // Fall back to the copy cached when this device published — without a
+      // database attached the server store is per-container memory, so a link
+      // can 404 on a container that never saw the publish.
+      const cached = await readCachedHandover(slug);
+      if (cancelled) return;
+      if (cached) {
+        setData({
+          ...cached,
+          aiDigest: buildHandoverAiDigest(cached, pageOrigin),
+          comments: cached.comments ?? [],
+          versions: [],
+        });
+        setServedLocally(true);
+        return;
+      }
+      setError(
+        `${serverError} No local copy on this device either — handovers are only durable when an Upstash database is attached, and links can't cross devices without one.`
+      );
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -153,6 +185,16 @@ export default function HandoverPage({
       >
         <ArrowLeft size={12} /> Back to Figred
       </Link>
+
+      {/* Local-copy banner — the server had no record, so this is the copy
+          cached when this device published. Won't open for anyone else. */}
+      {servedLocally && (
+        <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-4 py-2.5 text-[12px] text-amber-200">
+          Showing this device&apos;s local copy — the server has no record of
+          this handover. Attach an Upstash database so the link opens for
+          everyone.
+        </div>
+      )}
 
       {/* Superseded banner */}
       {supersededByVersion && (

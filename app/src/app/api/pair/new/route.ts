@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { issueCode } from "@/lib/handover-pair-store";
+import { storeFailure } from "@/lib/api-store-response";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,10 @@ export async function OPTIONS() {
  * localStorage by the Figred webapp so it can queue bundles later).
  */
 export async function POST() {
-  const result = await issueCode();
-  return NextResponse.json(result, { headers: CORS_HEADERS });
+  try {
+    const result = await issueCode();
+    return NextResponse.json(result, { headers: CORS_HEADERS });
+  } catch (error) {
+    return storeFailure("Pair code issue", error, CORS_HEADERS);
+  }
 }

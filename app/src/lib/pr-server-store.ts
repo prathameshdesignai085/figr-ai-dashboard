@@ -1,9 +1,10 @@
 import "server-only";
 import type { ComponentPR } from "@/types";
-import { getRedis } from "./redis";
+import { getKv } from "./kv";
 
 /**
- * Persistent store for component PRs, backed by Upstash Redis.
+ * Persistent store for component PRs, backed by the KV adapter
+ * (Upstash Redis when attached, in-memory otherwise — see `kv.ts`).
  *
  * Key shape:
  *   pr:{slug}              JSON ComponentPR
@@ -14,26 +15,26 @@ const prKey = (slug: string) => `pr:${slug}`;
 const spaceKey = (spaceId: string) => `pr:space:${spaceId}`;
 
 export async function savePr(pr: ComponentPR): Promise<void> {
-  const redis = getRedis();
+  const kv = getKv();
   await Promise.all([
-    redis.set(prKey(pr.slug), pr),
-    redis.sadd(spaceKey(pr.spaceId), pr.slug),
+    kv.set(prKey(pr.slug), pr),
+    kv.sadd(spaceKey(pr.spaceId), pr.slug),
   ]);
 }
 
 export async function getPr(slug: string): Promise<ComponentPR | undefined> {
-  const result = await getRedis().get<ComponentPR>(prKey(slug));
+  const result = await getKv().get<ComponentPR>(prKey(slug));
   return result ?? undefined;
 }
 
 export async function listPrsForSpace(
   spaceId: string
 ): Promise<ComponentPR[]> {
-  const redis = getRedis();
-  const slugs = await redis.smembers(spaceKey(spaceId));
+  const kv = getKv();
+  const slugs = await kv.smembers(spaceKey(spaceId));
   if (slugs.length === 0) return [];
   const prs = await Promise.all(
-    slugs.map((slug) => redis.get<ComponentPR>(prKey(slug)))
+    slugs.map((slug) => kv.get<ComponentPR>(prKey(slug)))
   );
   return prs.filter((p): p is ComponentPR => p !== null);
 }
